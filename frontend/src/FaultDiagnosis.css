@@ -1,0 +1,496 @@
+/* 故障诊断界面专用样式 */
+
+.fault-diagnosis-container {
+  max-width: 1400px;
+  display: grid;
+  gap: 2rem;
+}
+
+/* 控制部分 */
+.controls-section,
+.fault-control-section {
+  background: #0f131c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #1e2636;
+}
+
+.controls-section h2,
+.fault-control-section h2 {
+  color: #38bdf8;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+/* 故障开关 */
+.fault-toggle {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  background: #161d2b;
+  border-radius: 8px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 56px;
+  height: 28px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #1e2636;
+  transition: 0.3s;
+  border-radius: 999px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 20px;
+  width: 20px;
+  left: 4px;
+  bottom: 4px;
+  background-color: #6ee7b7;
+  transition: 0.3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #e9a568;
+}
+
+input:checked + .slider:before {
+  transform: translateX(28px);
+  background-color: #fff;
+}
+
+.fault-status {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.hint {
+  font-size: 0.875rem;
+  color: #6ee7b7;
+  margin-top: 0.5rem;
+}
+
+/* 运行按钮 */
+.run-experiment-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #38bdf8 0%, #3b6dff 100%);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  margin-top: 1rem;
+}
+
+.run-experiment-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(56, 189, 248, 0.3);
+}
+
+.run-experiment-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 可视化部分 */
+.visualization-section {
+  background: #0f131c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #1e2636;
+}
+
+.visualization-section h2 {
+  color: #38bdf8;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.chart-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+.chart-box {
+  background: #161d2b;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.chart-box h4 {
+  color: #e2e8f0;
+  font-size: 0.95rem;
+  margin-bottom: 0.75rem;
+  font-weight: 500;
+}
+
+.chart-legend {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: center;
+  gap: 2rem;
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: #94a3b8;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 0.5rem;
+}
+
+.legend-dot.green {
+  background-color: #6ee7b7;
+}
+
+.legend-dot.orange {
+  background-color: #e9a568;
+}
+
+/* 测量与诊断部分 */
+.measurement-section {
+  background: #0f131c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #1e2636;
+}
+
+.measurement-section h2 {
+  color: #38bdf8;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.measurement-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.measurement-card {
+  background: #161d2b;
+  border-radius: 8px;
+  padding: 1rem;
+  text-align: center;
+}
+
+.measurement-label {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+
+.measurement-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #6ee7b7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 诊断结果框 */
+.diagnosis-box {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 2px solid;
+}
+
+.diagnosis-box.has-fault {
+  background: rgba(233, 165, 104, 0.1);
+  border-color: #e9a568;
+}
+
+.diagnosis-box.no-fault {
+  background: rgba(110, 231, 183, 0.1);
+  border-color: #6ee7b7;
+}
+
+.diagnosis-icon {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.diagnosis-content {
+  flex: 1;
+}
+
+.diagnosis-content h3 {
+  font-size: 1.1rem;
+  color: #e2e8f0;
+  margin-bottom: 0.75rem;
+}
+
+.diagnosis-content p {
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin-bottom: 0.5rem;
+}
+
+.diagnosis-details {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #1e2636;
+}
+
+.diagnosis-details p {
+  font-size: 0.95rem;
+}
+
+/* 修复控制部分 */
+.repair-section {
+  background: #0f131c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #1e2636;
+}
+
+.repair-section h2 {
+  color: #38bdf8;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.repair-controls {
+  display: grid;
+  gap: 1rem;
+}
+
+.apply-threshold-btn,
+.suggested-threshold-btn {
+  padding: 0.875rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.apply-threshold-btn {
+  background: linear-gradient(135deg, #6ee7b7 0%, #38bdf8 100%);
+  color: #05070c;
+}
+
+.suggested-threshold-btn {
+  background: #1e2636;
+  color: #e2e8f0;
+  border: 1px solid #38bdf8;
+}
+
+.apply-threshold-btn:hover,
+.suggested-threshold-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.2);
+}
+
+/* BER对比部分 */
+.comparison-section {
+  background: #0f131c;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 1px solid #1e2636;
+}
+
+.comparison-section h2 {
+  color: #38bdf8;
+  margin-bottom: 1.5rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.ber-comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.ber-card {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid;
+}
+
+.ber-card.baseline {
+  border-color: #94a3b8;
+}
+
+.ber-card.normal {
+  border-color: #6ee7b7;
+}
+
+.ber-card.fault {
+  border-color: #e9a568;
+}
+
+.ber-card.repaired {
+  border-color: #38bdf8;
+}
+
+.ber-card.custom {
+  border-color: #3b6dff;
+}
+
+.card-header {
+  background: #161d2b;
+  padding: 0.75rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #e2e8f0;
+  border-bottom: 2px solid;
+}
+
+.baseline .card-header {
+  border-color: #94a3b8;
+}
+
+.normal .card-header {
+  border-color: #6ee7b7;
+}
+
+.fault .card-header {
+  border-color: #e9a568;
+}
+
+.repaired .card-header {
+  border-color: #38bdf8;
+}
+
+.custom .card-header {
+  border-color: #3b6dff;
+}
+
+.card-body {
+  padding: 1.5rem 1rem;
+  background: #0a0d12;
+}
+
+.ber-value-large {
+  font-size: 1.75rem;
+  font-weight: 700;
+  text-align: center;
+  margin-bottom: 1rem;
+  font-variant-numeric: tabular-nums;
+  color: #e2e8f0;
+}
+
+.ber-details {
+  font-size: 0.875rem;
+  color: #94a3b8;
+  line-height: 1.8;
+}
+
+.ber-details p {
+  margin: 0.25rem 0;
+}
+
+.improvement {
+  color: #6ee7b7;
+  font-weight: 600;
+}
+
+.degradation {
+  color: #e9a568;
+  font-weight: 600;
+}
+
+/* 对比说明 */
+.comparison-notes {
+  background: #161d2b;
+  border-radius: 8px;
+  padding: 1.5rem;
+  border-left: 4px solid #38bdf8;
+}
+
+.comparison-notes h4 {
+  color: #e2e8f0;
+  font-size: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.comparison-notes ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.comparison-notes li {
+  color: #cbd5e1;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.comparison-notes li:before {
+  content: "•";
+  position: absolute;
+  left: 0.5rem;
+  color: #6ee7b7;
+}
+
+/* 响应式调整 */
+@media (max-width: 1024px) {
+  .chart-comparison {
+    grid-template-columns: 1fr;
+  }
+
+  .ber-comparison-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .fault-diagnosis-container {
+    gap: 1.5rem;
+  }
+
+  .measurement-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .ber-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-legend {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+}
