@@ -5,7 +5,10 @@
 ## Git 状态
 
 - 初始：分支 `main`，HEAD `e10ad5d112e00893928b1025351401c89692edea`，跟踪 `origin/main`；已存在未跟踪文件 `artifacts/stage02-p2-round15-browser-acceptance.md`，保持原样且未纳入本次提交。
-- 最终提交、作者/提交者和远程 SHA：提交后补记。
+- 最终源码提交：`1b72aa1bfc52bc30045e5b4f5243af54cf99985a`。
+- Author 与 Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`；提交信息 `Add Stage06 carrier phase diagnosis lab`，无 Claude/Anthropic 署名。
+- 已普通推送 `main`；`git ls-remote origin refs/heads/main` 返回 `1b72aa1bfc52bc30045e5b4f5243af54cf99985a`，与本地 HEAD 一致。
+- 推送后工作区仅保留初始即存在的未跟踪报告 `artifacts/stage02-p2-round15-browser-acceptance.md`；Stage06 文件已提交。
 
 ## 模型与估计
 
@@ -44,4 +47,4 @@
 
 ## 发布记录
 
-提交 SHA、Author、Committer、推送结果及 `origin/main` SHA 将在发布步骤后填写。
+源码提交及远程核验 SHA：`1b72aa1bfc52bc30045e5b4f5243af54cf99985a`；Author/Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`；普通推送成功，远程 `origin/main` 与本地源码提交 SHA 相同。
