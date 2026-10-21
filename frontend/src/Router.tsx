@@ -4,6 +4,7 @@ import FaultDiagnosisApp from './FaultDiagnosisApp';
 import DiagnosticChallengeApp from './DiagnosticChallengeApp';
 import FrequencyOffsetApp from './FrequencyOffsetApp';
 import MultiFaultApp from './MultiFaultApp';
+import PhaseOffsetApp from './PhaseOffsetApp';
 
 /**
  * 简单的 Hash 路由组件
@@ -93,6 +94,7 @@ export default function Router() {
       >
         Stage05 联合诊断
       </a>
+      <a href="#/stage06" style={{color:route==='/stage06'?'#38BDF8':'#9CA3AF',textDecoration:'none',padding:'0.5rem 1rem',borderRadius:'6px',background:route==='/stage06'?'#161D2B':'transparent'}}>Stage06 载波相位</a>
     </nav>
   );
 
@@ -104,6 +106,7 @@ export default function Router() {
       {route === '/stage03' && <DiagnosticChallengeApp />}
       {route === '/stage04' && <FrequencyOffsetApp />}
       {route === '/stage05' && <MultiFaultApp />}
+      {route === '/stage06' && <PhaseOffsetApp />}
     </>
   );
 }

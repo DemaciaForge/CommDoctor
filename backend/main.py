@@ -26,6 +26,7 @@ from multi_fault import (
     estimate_multi_fault,
     simulate_multi_fault,
 )
+from phase_offset import simulate_phase_offset, estimate_phase, compensate_phase, measure_ber
 from typing import Literal
 import math
 import json
@@ -84,7 +85,9 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage04/challenges/diagnosis",
         "/api/stage04/challenges/compensate",
         "/api/stage05/challenges/diagnosis",
-        "/api/stage05/challenges/compensate"
+        "/api/stage05/challenges/compensate",
+        "/api/stage06/challenges/diagnosis",
+        "/api/stage06/challenges/compensate",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -312,6 +315,27 @@ class MultiFaultCompensationRequest(BaseModel):
         return value
 
 
+class Stage06CreateRequest(BaseModel):
+    scenario: Literal["normal", "phase", "phase_positive", "phase_negative"]
+
+
+class Stage06DiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["none", "phase_offset"]
+
+
+class Stage06CompensationRequest(BaseModel):
+    challenge_id: str
+    compensation_deg: float = Field(..., ge=-180, le=180)
+
+    @field_validator("compensation_deg", mode="before")
+    @classmethod
+    def validate_phase_compensation(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("compensation_deg must be a finite real number")
+        return value
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -427,6 +451,7 @@ frequency_challenge_cache = {}
 MAX_FREQUENCY_CHALLENGE_CACHE_SIZE = 20
 multi_fault_challenge_cache = {}
 MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE = 20
+stage06_challenge_cache = {}
 
 
 @app.post("/api/fault-diagnosis")
@@ -923,6 +948,74 @@ async def multi_fault_challenge_feedback(challenge_id: str):
             "limitations": "均值和谱峰估计受有限样本、AWGN、参数误差影响；频偏估计范围为 |ε|<0.25 cycles/symbol。",
         },
     }
+
+
+@app.post("/api/stage06/challenges")
+async def create_stage06_challenge(request: Stage06CreateRequest):
+    if request.scenario == "normal":
+        phase = 0.0
+    elif request.scenario == "phase_positive":
+        phase = secrets.choice([math.pi/4, math.pi/3])
+    elif request.scenario == "phase_negative":
+        phase = secrets.choice([-math.pi/4, -math.pi/3])
+    else:
+        phase = secrets.choice([-math.pi/4, math.pi/4, -math.pi/3, math.pi/3])
+    experiment = simulate_phase_offset(seed=secrets.randbits(32), phase_rad=phase)
+    challenge_id = str(uuid.uuid4())
+    if len(stage06_challenge_cache) >= 20:
+        del stage06_challenge_cache[next(iter(stage06_challenge_cache))]
+    stage06_challenge_cache[challenge_id] = {**experiment, "scenario": "phase_offset" if phase != 0 else "none", "measurement": None, "diagnosis": None, "compensation": None}
+    samples = experiment["received"][::8]
+    return {"challenge_id": challenge_id, "status": "observe", "objective": "从实际 I/Q 信号和星座图识别恒定载波相位偏移。",
+            "n_symbols": experiment["n_symbols"], "eb_n0_db": experiment["eb_n0_db"], "before": experiment["before"],
+            "phase_unit": "degrees (°); internal calculations use radians", "signal": {
+                "i": samples.real.tolist(), "q": samples.imag.tolist(),
+                "constellation": [{"i": float(z.real), "q": float(z.imag)} for z in samples]}}
+
+
+@app.get("/api/stage06/challenges/{challenge_id}/measurement")
+async def measure_stage06_challenge(challenge_id: str):
+    challenge = stage06_challenge_cache.get(challenge_id)
+    if challenge is None: raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    estimate = estimate_phase(challenge["received"])
+    challenge["measurement"] = estimate
+    return {"status": "measured", "phase_hat_rad": estimate, "phase_hat_deg": math.degrees(estimate), "unit": "degrees (°)",
+            "method": "0.5 × arg(sum(r[n]^2)); BPSK data signs cancel; normalized to [-90°, 90°)."}
+
+
+@app.post("/api/stage06/challenges/diagnosis")
+async def diagnose_stage06_challenge(request: Stage06DiagnosisRequest):
+    challenge = stage06_challenge_cache.get(request.challenge_id)
+    if challenge is None: raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["measurement"] is None: raise HTTPException(status_code=409, detail="Measure the received signal before diagnosis.")
+    correct = request.suspected_fault == challenge["scenario"]
+    challenge["diagnosis"] = {"suspected_fault": request.suspected_fault, "correct": correct}
+    return {"correct": correct, "status": "compensate" if correct else "diagnose", "message": "判断正确。可以提交你的补偿角度。" if correct else "判断暂不正确，请结合相位估计和星座方向重新判断。"}
+
+
+@app.post("/api/stage06/challenges/compensate")
+async def compensate_stage06_challenge(request: Stage06CompensationRequest):
+    challenge = stage06_challenge_cache.get(request.challenge_id)
+    if challenge is None: raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis"] or not challenge["diagnosis"]["correct"]: raise HTTPException(status_code=409, detail="Submit a correct diagnosis before compensation.")
+    corrected = compensate_phase(challenge["received"], math.radians(request.compensation_deg))
+    after = measure_ber(challenge["bits"], corrected)
+    challenge["compensation"] = {"compensation_deg": request.compensation_deg, "after": after, "constellation": [{"i": float(z.real), "q": float(z.imag)} for z in corrected[::8]]}
+    return {"status": "compensated", "before": challenge["before"], "after": after, "compensation_deg": request.compensation_deg,
+            "constellation": challenge["compensation"]["constellation"]}
+
+
+@app.get("/api/stage06/challenges/{challenge_id}/feedback")
+async def stage06_challenge_feedback(challenge_id: str):
+    challenge = stage06_challenge_cache.get(challenge_id)
+    if challenge is None: raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis"] or not challenge["diagnosis"]["correct"] or not challenge["compensation"]: raise HTTPException(status_code=409, detail="Complete diagnosis and compensation before feedback.")
+    actual_deg = math.degrees(challenge["phase_rad"])
+    estimate_deg = math.degrees(challenge["measurement"])
+    return {"status": "complete", "actual_fault": {"scenario": challenge["scenario"], "phase_deg": actual_deg}, "diagnosis": challenge["diagnosis"],
+            "estimate_deg": estimate_deg, "estimate_error_deg": estimate_deg-actual_deg, "compensation": challenge["compensation"],
+            "before": challenge["before"], "after": challenge["compensation"]["after"],
+            "lesson": {"model": "r[n] = a[n]·exp(jφ) + w[n]；φ 用弧度计算，界面使用角度。", "principle": "补偿将每个复样本乘以 exp(-jφ̂)，把星座旋回 BPSK 实轴。", "limits": "平方估计器存在 π 相位歧义，输出范围 [-90°, 90°)；本实验故障限制在 ±60°。接近 ±90° 或低信噪比时估计可能不稳定。补偿前后使用相同发送比特和噪声。"}}
 
 
 if __name__ == "__main__":
