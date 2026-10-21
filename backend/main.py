@@ -27,6 +27,7 @@ from multi_fault import (
     simulate_multi_fault,
 )
 from phase_offset import simulate_phase_offset, estimate_phase, compensate_phase, measure_ber
+from triple_fault import SCENARIOS as STAGE07_SCENARIOS, simulate_triple_fault, estimate_triple, compensate_triple
 from typing import Literal
 import math
 import json
@@ -88,6 +89,8 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage05/challenges/compensate",
         "/api/stage06/challenges/diagnosis",
         "/api/stage06/challenges/compensate",
+        "/api/stage07/challenges/diagnosis",
+        "/api/stage07/challenges/compensate",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -336,6 +339,26 @@ class Stage06CompensationRequest(BaseModel):
         return value
 
 
+class Stage07DiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["none", "dc", "frequency", "phase", "dc_frequency", "dc_phase", "frequency_phase", "triple"]
+
+
+class Stage07CompensationRequest(BaseModel):
+    challenge_id: str
+    mode: Literal["dc", "frequency", "phase", "joint"]
+    dc_hat: float = Field(..., ge=-2, le=2)
+    epsilon_hat: float = Field(..., gt=-0.25, lt=0.25)
+    phi_hat_deg: float = Field(..., ge=-180, le=180)
+
+    @field_validator("dc_hat", "epsilon_hat", "phi_hat_deg", mode="before")
+    @classmethod
+    def validate_stage07_values(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int,float)) or not math.isfinite(value):
+            raise ValueError("compensation values must be finite real numbers")
+        return value
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -452,6 +475,7 @@ MAX_FREQUENCY_CHALLENGE_CACHE_SIZE = 20
 multi_fault_challenge_cache = {}
 MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE = 20
 stage06_challenge_cache = {}
+stage07_challenge_cache = {}
 
 
 @app.post("/api/fault-diagnosis")
@@ -1016,6 +1040,71 @@ async def stage06_challenge_feedback(challenge_id: str):
             "estimate_deg": estimate_deg, "estimate_error_deg": estimate_deg-actual_deg, "compensation": challenge["compensation"],
             "before": challenge["before"], "after": challenge["compensation"]["after"],
             "lesson": {"model": "r[n] = a[n]·exp(jφ) + w[n]；φ 用弧度计算，界面使用角度。", "principle": "补偿将每个复样本乘以 exp(-jφ̂)，把星座旋回 BPSK 实轴。", "limits": "平方估计器存在 π 相位歧义，输出范围 [-90°, 90°)；本实验故障限制在 ±60°。接近 ±90° 或低信噪比时估计可能不稳定。补偿前后使用相同发送比特和噪声。"}}
+
+
+@app.post("/api/stage07/challenges")
+async def create_stage07_challenge():
+    scenario = secrets.choice(tuple(STAGE07_SCENARIOS))
+    experiment = simulate_triple_fault(seed=secrets.randbits(32), scenario=scenario)
+    challenge_id = str(uuid.uuid4())
+    if len(stage07_challenge_cache) >= 20: del stage07_challenge_cache[next(iter(stage07_challenge_cache))]
+    stage07_challenge_cache[challenge_id] = {**experiment, "measurement": None, "diagnosis": None, "compensation": {}}
+    z=experiment["received"]; sample=z[::8]
+    return {"challenge_id":challenge_id,"status":"observe","n_symbols":experiment["n_symbols"],"eb_n0_db":experiment["eb_n0_db"],"before":experiment["before"],
+            "units":{"dc":"I-channel amplitude","epsilon":"cycles per symbol (Δf·Ts), not Hz","phi":"degrees (°); internal radians"},
+            "signal":{"i":sample.real.tolist(),"q":sample.imag.tolist(),"mean_i":float(np.mean(z.real)),"mean_q":float(np.mean(z.imag)),
+                      "phase_rad":phase_track(z,count=512)[::8],"constellation":[{"i":float(v.real),"q":float(v.imag)} for v in sample]}}
+
+
+@app.get("/api/stage07/challenges/{challenge_id}/measurement")
+async def measure_stage07_challenge(challenge_id:str):
+    challenge=stage07_challenge_cache.get(challenge_id)
+    if challenge is None: raise HTTPException(status_code=404,detail="Challenge not found or expired. Start a new challenge.")
+    try: measured=estimate_triple(challenge["received"])
+    except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc))
+    challenge["measurement"]=measured
+    measured.update({"dc_unit":"I-channel amplitude","epsilon_unit":"cycles per symbol (Δf·Ts)","phi_unit":"degrees (°)",
+                     "dc_method":"接收 I 路样本均值；频偏/相位及有限样本数据会造成估计误差。",
+                     "frequency_method":"减去 I 均值后，对平方 BPSK 信号进行零填充 FFT 频谱峰估计；|ε|<0.25。",
+                     "phase_method":"去 DC 并按估计频偏反旋后计算 0.5·arg(sum(r²))，归一化到 [-90°,90°)。"})
+    return {"status":"measured",**measured}
+
+
+@app.post("/api/stage07/challenges/diagnosis")
+async def diagnose_stage07_challenge(request:Stage07DiagnosisRequest):
+    challenge=stage07_challenge_cache.get(request.challenge_id)
+    if challenge is None: raise HTTPException(status_code=404,detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["measurement"] is None: raise HTTPException(status_code=409,detail="Measure the received signal before diagnosis.")
+    correct=request.suspected_fault==challenge["scenario"]
+    challenge["diagnosis"]={"suspected_fault":request.suspected_fault,"correct":correct}
+    return {"correct":correct,"status":"compensate" if correct else "diagnose","message":"组合判断正确，可以进行分步补偿。" if correct else "判断不匹配，请结合三类测量证据后重试。"}
+
+
+@app.post("/api/stage07/challenges/compensate")
+async def compensate_stage07_challenge(request:Stage07CompensationRequest):
+    challenge=stage07_challenge_cache.get(request.challenge_id)
+    if challenge is None: raise HTTPException(status_code=404,detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis"] or not challenge["diagnosis"]["correct"]: raise HTTPException(status_code=409,detail="Submit a correct diagnosis before compensation.")
+    try:
+        corrected=compensate_triple(challenge["received"],request.dc_hat,request.epsilon_hat,math.radians(request.phi_hat_deg),request.mode)
+        result=calculate_bpsk_ber(challenge["bits"],corrected)
+    except ValueError as exc: raise HTTPException(status_code=422,detail=str(exc))
+    constellation=[{"i":float(v.real),"q":float(v.imag)} for v in corrected[::8]]
+    output={"mode":request.mode,"dc_hat":request.dc_hat,"epsilon_hat":request.epsilon_hat,"phi_hat_deg":request.phi_hat_deg,**result}
+    challenge["compensation"][request.mode]=output
+    return {"status":"compensated","before":challenge["before"],"after":result,"all_results":challenge["compensation"],"constellation":constellation}
+
+
+@app.get("/api/stage07/challenges/{challenge_id}/feedback")
+async def stage07_challenge_feedback(challenge_id:str):
+    challenge=stage07_challenge_cache.get(challenge_id)
+    if challenge is None: raise HTTPException(status_code=404,detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis"] or not challenge["diagnosis"]["correct"] or not challenge["compensation"]: raise HTTPException(status_code=409,detail="Complete diagnosis and at least one compensation before feedback.")
+    m=challenge["measurement"]; truth={"scenario":challenge["scenario"],"dc":challenge["dc"],"epsilon":challenge["epsilon"],"phi_deg":math.degrees(challenge["phi"])}
+    errors={"dc":m["dc_hat"]-challenge["dc"],"epsilon":m["epsilon_hat"]-challenge["epsilon"],"phi_deg":m["phi_hat_deg"]-truth["phi_deg"]}
+    return {"status":"complete","actual_fault":truth,"diagnosis":challenge["diagnosis"],"measurement":m,"estimate_errors":errors,
+            "before":challenge["before"],"compensation":challenge["compensation"],
+            "lesson":{"model":"r[n]=a[n]exp(j(2πεn+φ))+d+w[n]。先注入相位和逐符号频率旋转，再叠加 I 路 DC，最后叠加复 AWGN。","order":"测量 DC 均值并校正，再从平方 BPSK 估计频偏并反旋，最后从校正信号估计恒定相位。各估计误差会向后传播。","limitations":"DC 均值受有限随机数据影响；频偏平方谱估计适用 |ε|<0.25 cycles/symbol；恒定相位存在 π 歧义，估计限制为 [-90°,90°)。低信噪比、短样本及残余 DC 会影响联合估计。BER 是同一批样本上的硬判决统计，可能变差。"}}
 
 
 if __name__ == "__main__":
