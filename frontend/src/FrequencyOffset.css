@@ -1,0 +1,24 @@
+.frequency-container { max-width:1100px; }
+.frequency-header { border-bottom-color:#283b55; }
+.frequency-eyebrow,.frequency-kicker { color:#38bdf8; font-size:.72rem; font-weight:700; letter-spacing:.13em; }
+.frequency-intro,.frequency-panel,.frequency-empty { background:#0f131c; border:1px solid #263244; border-radius:14px; padding:clamp(1.2rem,3vw,2rem); }
+.frequency-intro { display:flex; justify-content:space-between; align-items:center; gap:2rem; }
+.frequency-intro h2,.frequency-panel h2,.frequency-empty h2 { margin:.35rem 0 .6rem; font-size:1.45rem; }
+.frequency-intro p,.frequency-panel>p,.frequency-empty p,.frequency-caption { color:#9ca3af; max-width:75ch; }
+.unit-note { color:#7f91a8!important; font-size:.83rem; }
+.frequency-primary,.frequency-secondary { border:0; border-radius:8px; padding:.78rem 1rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.frequency-primary { color:#071018; background:#38bdf8; }.frequency-secondary { background:#1e293b; color:#e5e7eb; border:1px solid #3a4a60; }
+.frequency-primary:disabled,.frequency-secondary:disabled { opacity:.55; cursor:not-allowed; }
+.frequency-error { padding:1rem; border:1px solid #ef4444; background:#2a1518; border-radius:8px; color:#fca5a5; }
+.frequency-panel-heading { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin-bottom:1rem; }.frequency-panel-heading h2 { margin:0; }
+.frequency-badge { border:1px solid #2a384a; background:#182230; border-radius:999px; padding:.35rem .7rem; color:#b8c3d1; font-size:.78rem; white-space:nowrap; }.frequency-badge.complete { color:#6ee7b7; border-color:#27634f; }
+.frequency-metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:.8rem; margin:1.2rem 0; }.frequency-metrics article { min-width:0; background:#161d2b; border:1px solid #293447; border-radius:10px; padding:1rem; }.frequency-metrics article span,.frequency-metrics article em { display:block; color:#9ca3af; font-size:.8rem; font-style:normal; }.frequency-metrics article strong { display:block; margin:.3rem 0; font-size:1.2rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.frequency-plots { display:grid; grid-template-columns:1fr 1fr; gap:1rem; }.frequency-plot { background:#0a0d12; border:1px solid #293447; border-radius:10px; padding:.8rem; min-width:0; }.frequency-plot h3 { color:#d1d5db; font-size:.9rem; }.frequency-plot svg { width:100%; height:auto; display:block; }.phase-plot { grid-column:1/-1; }.frequency-legend { display:flex; justify-content:center; gap:1rem; color:#9ca3af; font-size:.75rem; }.frequency-legend span:first-child { color:#38bdf8; }.frequency-legend span:last-child { color:#e9a568; }
+.frequency-caption { margin:.65rem 0 1rem; font-size:.8rem; }
+.frequency-estimate { margin-top:1rem; padding:1rem; background:#10202b; border:1px solid #1e5266; border-radius:9px; }.frequency-estimate>span { color:#9ca3af; display:block; }.frequency-estimate strong { color:#7dd3fc; display:block; font-size:1.4rem; margin:.25rem 0; }.frequency-estimate small { font-size:.8rem; }.frequency-estimate p { color:#9ca3af; font-size:.82rem; margin:0; }
+.frequency-options { display:flex; align-items:center; flex-wrap:wrap; gap:.8rem; margin-top:1rem; }.frequency-options label { display:flex; gap:.5rem; align-items:center; padding:.7rem .85rem; border:1px solid #293447; background:#161d2b; color:#d1d5db; border-radius:8px; }.frequency-options input { accent-color:#38bdf8; }
+.frequency-message { padding:.8rem 1rem; border-radius:8px; margin-top:1rem; background:#2a2117; color:#f0b978; }.frequency-message.good { background:#12261f; color:#6ee7b7; }
+.frequency-input-row { display:flex; align-items:center; gap:.7rem; flex-wrap:wrap; margin:1.2rem 0; }.frequency-input-row label { color:#cbd5e1; }.frequency-input-row label small { display:block; color:#9ca3af; }.frequency-input-row input { padding:.7rem; width:210px; background:#161d2b; color:#e5e7eb; border:1px solid #3a4a60; border-radius:8px; font-size:1rem; }
+.frequency-answer { display:flex; align-items:baseline; flex-wrap:wrap; gap:.5rem 1rem; padding:1rem; background:#13251f; border:1px solid #27634f; border-radius:9px; }.frequency-answer span { color:#9ca3af; }.frequency-answer strong { color:#6ee7b7; font-size:1.2rem; }
+.frequency-lesson { border-top:1px solid #293447; margin-top:1.2rem; padding-top:.8rem; }.frequency-lesson h3 { margin:.8rem 0 .25rem; color:#cbd5e1; font-size:.95rem; }.frequency-lesson p { color:#9ca3af; }
+@media(max-width:700px) { .frequency-intro,.frequency-panel-heading { align-items:flex-start; flex-direction:column; }.frequency-plots { grid-template-columns:1fr; }.phase-plot { grid-column:auto; }.frequency-input-row input { flex:1; min-width:140px; } }

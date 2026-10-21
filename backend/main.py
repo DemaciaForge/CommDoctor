@@ -10,6 +10,14 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, field_validator, ValidationError
 from bpsk_simulator import BPSKSimulator
+from frequency_offset import (
+    MAX_UNAMBIGUOUS_OFFSET,
+    calculate_bpsk_ber,
+    compensate_bpsk_frequency_offset,
+    estimate_bpsk_frequency_offset,
+    phase_track,
+    simulate_bpsk_frequency_offset,
+)
 from typing import Literal
 import math
 import json
@@ -64,7 +72,9 @@ async def validate_request_body(request: Request, call_next):
         "/api/fault-diagnosis",
         "/api/apply-threshold",
         "/api/challenges/diagnosis",
-        "/api/challenges/repair"
+        "/api/challenges/repair",
+        "/api/stage04/challenges/diagnosis",
+        "/api/stage04/challenges/compensate"
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -256,6 +266,23 @@ class ChallengeRepairRequest(BaseModel):
         return v
 
 
+class FrequencyDiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["frequency_offset", "no_offset"]
+
+
+class FrequencyCompensationRequest(BaseModel):
+    challenge_id: str
+    epsilon_hat: float = Field(..., gt=-0.25, lt=0.25, description="normalized cycles per symbol")
+
+    @field_validator('epsilon_hat', mode='before')
+    @classmethod
+    def validate_epsilon_input(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("epsilon_hat must be a finite real number")
+        return value
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -367,6 +394,8 @@ experiment_cache = {}
 MAX_CACHE_SIZE = 10  # F组修复：明确容量限制
 challenge_cache = {}
 MAX_CHALLENGE_CACHE_SIZE = 20
+frequency_challenge_cache = {}
+MAX_FREQUENCY_CHALLENGE_CACHE_SIZE = 20
 
 
 @app.post("/api/fault-diagnosis")
@@ -606,6 +635,148 @@ async def challenge_feedback(challenge_id: str):
                 if repair["n_errors"] < before["n_errors"] else
                 "本次门限没有降低误码数。可将测得的接收均值作为偏移估计，尝试把门限调到该估计附近，再观察配对 BER。"
             ),
+        },
+    }
+
+
+@app.post("/api/stage04/challenges")
+async def create_frequency_challenge():
+    """Create a complex-baseband BPSK trial with a hidden normalized carrier offset."""
+    epsilon = secrets.choice([0.0, 0.02, -0.02])
+    seed = secrets.randbits(32)
+    try:
+        experiment = simulate_bpsk_frequency_offset(
+            seed=seed, n_symbols=4096, eb_n0_db=8.0, epsilon=epsilon
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=500, detail=f"Frequency challenge error: {str(e)}")
+    challenge_id = str(uuid.uuid4())
+    if len(frequency_challenge_cache) >= MAX_FREQUENCY_CHALLENGE_CACHE_SIZE:
+        del frequency_challenge_cache[next(iter(frequency_challenge_cache))]
+    frequency_challenge_cache[challenge_id] = {
+        **experiment,
+        "epsilon": epsilon,
+        "seed": seed,
+        "eb_n0_db": 8.0,
+        "estimate": None,
+        "diagnosis_correct": None,
+        "diagnosis": None,
+        "compensation": None,
+    }
+    # Sparse real samples keep the payload small while supporting I/Q, phase, and constellation plots.
+    stride = 8
+    received = experiment["received"][::stride]
+    symbols = experiment["symbols"][::stride]
+    return {
+        "challenge_id": challenge_id,
+        "status": "observe",
+        "objective": "观察复基带接收信号，估计归一化频偏，判断载波是否偏移，并尝试补偿后比较 BER。",
+        "epsilon_unit": "cycles per symbol (Δf·Ts)",
+        "estimator_unambiguous_range": [-MAX_UNAMBIGUOUS_OFFSET, MAX_UNAMBIGUOUS_OFFSET],
+        "n_symbols": int(experiment["bits"].size),
+        "eb_n0_db": 8.0,
+        "ber_theoretical": experiment["ber_theoretical"],
+        "before": {"ber": experiment["ber"], "n_errors": experiment["n_errors"]},
+        "signal": {
+            "i": [float(v) for v in received.real],
+            "q": [float(v) for v in received.imag],
+            "phase_rad": phase_track(experiment["received"], count=512)[::8],
+            "constellation": [{"i": float(z.real), "q": float(z.imag)} for z in received],
+        },
+    }
+
+
+@app.get("/api/stage04/challenges/{challenge_id}/estimate")
+async def estimate_frequency_challenge(challenge_id: str):
+    challenge = frequency_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    estimate = estimate_bpsk_frequency_offset(challenge["received"])
+    challenge["estimate"] = estimate
+    return {
+        "status": "estimate_measured",
+        "epsilon_hat": estimate,
+        "epsilon_unit": "cycles per symbol (Δf·Ts)",
+        "unambiguous_range": [-MAX_UNAMBIGUOUS_OFFSET, MAX_UNAMBIGUOUS_OFFSET],
+        "decision_deadband": 0.002,
+        "method": "BPSK 平方消除 ±1 数据符号后，对平方信号做零填充 FFT，并将谱峰频率折半。",
+    }
+
+
+@app.post("/api/stage04/challenges/diagnosis")
+async def diagnose_frequency_challenge(request: FrequencyDiagnosisRequest):
+    challenge = frequency_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["estimate"] is None:
+        raise HTTPException(status_code=409, detail="Measure the frequency offset before submitting a diagnosis.")
+    # The randomized normal state has exactly zero offset; nonzero states are +/-0.02.
+    actual_fault = challenge["epsilon"] != 0.0
+    is_correct = (request.suspected_fault == "frequency_offset") == actual_fault
+    challenge["diagnosis"] = request.suspected_fault
+    challenge["diagnosis_correct"] = is_correct
+    if is_correct:
+        return {"correct": True, "status": "compensate", "message": "判断正确。使用测得的归一化频偏值尝试补偿。"}
+    return {
+        "correct": False,
+        "status": "diagnose",
+        "message": "当前判断与现有相位测量证据不一致。请检查估计值的符号和大小后重试。",
+    }
+
+
+@app.post("/api/stage04/challenges/compensate")
+async def compensate_frequency_challenge(request: FrequencyCompensationRequest):
+    challenge = frequency_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis_correct"] is not True:
+        raise HTTPException(status_code=409, detail="Submit a correct diagnosis before running compensation.")
+    try:
+        compensated = compensate_bpsk_frequency_offset(challenge["received"], request.epsilon_hat)
+        after = calculate_bpsk_ber(challenge["bits"], compensated)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid compensation: {str(e)}")
+    challenge["compensation"] = {"epsilon_hat": request.epsilon_hat, **after}
+    before = {"ber": challenge["ber"], "n_errors": challenge["n_errors"]}
+    return {
+        "status": "compensated",
+        "before": before,
+        "after": after,
+        "epsilon_hat": request.epsilon_hat,
+        "improved": after["n_errors"] < before["n_errors"],
+    }
+
+
+@app.get("/api/stage04/challenges/{challenge_id}/feedback")
+async def frequency_challenge_feedback(challenge_id: str):
+    challenge = frequency_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis_correct"] is not True:
+        raise HTTPException(status_code=409, detail="Complete the diagnosis before viewing feedback.")
+    if challenge["compensation"] is None:
+        raise HTTPException(status_code=409, detail="Run a compensation experiment before viewing feedback.")
+    compensation = challenge["compensation"]
+    estimate = challenge["estimate"]
+    before = {"ber": challenge["ber"], "n_errors": challenge["n_errors"]}
+    error = estimate - challenge["epsilon"]
+    return {
+        "status": "complete",
+        "actual_fault": {"type": "frequency_offset" if challenge["epsilon"] else "none", "epsilon": challenge["epsilon"]},
+        "diagnosis": {"suspected_fault": challenge["diagnosis"], "correct": challenge["diagnosis_correct"]},
+        "estimate": {"epsilon_hat": estimate, "epsilon_unit": "cycles per symbol (Δf·Ts)", "error": error},
+        "compensation": compensation,
+        "ber": {"theoretical": challenge["ber_theoretical"], "before": before, "after": {"ber": compensation["ber"], "n_errors": compensation["n_errors"]}},
+        "lesson": {
+            "model": "r[n] = a[n]·exp(j·2π·ε·n) + w[n]，本轮初始相位为 0，ε=Δf·Ts，单位是 cycles/symbol；没有给定采样率或符号率，因此不报告 Hz。",
+            "estimator": "对 BPSK 接收样本平方可消去 ±1 数据调制，载波频率变为 2ε。零填充 FFT 的谱峰给出平方信号频率，再折半得到 cycles/symbol。无歧义范围为 |ε| < 0.25。",
+            "compensation": "对每个样本乘 exp(-j·2π·ε̂·n)，抵消估计的载波相位旋转，再用补偿后实部按零门限判决。",
+            "conclusion": (
+                "补偿使误码数下降。残余误差来自频偏估计误差和 AWGN。"
+                if compensation["n_errors"] < before["n_errors"] else
+                "本次补偿未降低误码数；请结合估计误差、噪声和补偿值分析。BER 是有限样本统计量，不保证每次实验都达到理论值。"
+            ),
+            "limitations": "平方信号频谱估计要求 |ε|<0.25 cycles/symbol；有限长度、频谱峰值插值精度、AWGN 和低 SNR 会带来估计波动。零频偏挑战使用 0.002 cycles/symbol 死区，以避免把测量噪声当作故障。",
         },
     }
 
