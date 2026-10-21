@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import App from './App';
 import FaultDiagnosisApp from './FaultDiagnosisApp';
+import DiagnosticChallengeApp from './DiagnosticChallengeApp';
 
 /**
  * 简单的 Hash 路由组件
  * / 或 #/ -> Stage01 BPSK 仿真
  * #/stage02 -> Stage02 故障诊断
+ * #/stage03 -> Stage03 诊断挑战
  */
 export default function Router() {
   const [route, setRoute] = useState(window.location.hash.slice(1) || '/');
@@ -53,6 +55,18 @@ export default function Router() {
       >
         Stage02 故障诊断
       </a>
+      <a
+        href="#/stage03"
+        style={{
+          color: route === '/stage03' ? '#38BDF8' : '#9CA3AF',
+          textDecoration: 'none',
+          padding: '0.5rem 1rem',
+          borderRadius: '6px',
+          background: route === '/stage03' ? '#161D2B' : 'transparent'
+        }}
+      >
+        Stage03 诊断挑战
+      </a>
     </nav>
   );
 
@@ -61,6 +75,7 @@ export default function Router() {
       {nav}
       {route === '/' && <App />}
       {route === '/stage02' && <FaultDiagnosisApp />}
+      {route === '/stage03' && <DiagnosticChallengeApp />}
     </>
   );
 }

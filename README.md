@@ -26,6 +26,13 @@ CommDoctor 是一个用于数字通信系统故障诊断教学的Web平台。通
 - 修复前后BER量化对比
 - 完整诊断-修复工作流
 
+### 阶段03：交互式诊断挑战 MVP
+
+- 后端随机生成 DC 偏移仿真实验，创建响应隐藏注入参数和诊断答案
+- 查看真实 BPSK/AWGN 波形、基准与故障 BER，并主动请求均值/3σ测量证据
+- 提交故障判断；错误时允许继续分析，正确后开放门限修复实验
+- 基于同一批实验样本计算修复 BER，并展示参数、证据、机理和针对性反馈
+
 ## 技术栈
 
 - **前端**：React + TypeScript + Vite
@@ -69,6 +76,13 @@ npm run dev
 - `POST /api/simulate` - 运行BPSK仿真（阶段01）
 - `POST /api/fault-diagnosis` - 运行故障诊断实验（阶段02）
 - `POST /api/apply-threshold` - 应用自定义判决门限（阶段02）
+- `POST /api/challenges` - 创建 Stage03 DC 偏移挑战
+- `GET /api/challenges/{challenge_id}/measurement` - 收集挑战测量证据
+- `POST /api/challenges/diagnosis` - 提交挑战诊断
+- `POST /api/challenges/repair` - 执行挑战门限修复
+- `GET /api/challenges/{challenge_id}/feedback` - 查看完成后的教学复盘
+
+前端可通过导航进入 `#/stage03`。Stage03 首版只生成 DC 偏移故障。
 
 ## 测试
 

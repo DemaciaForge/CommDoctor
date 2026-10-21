@@ -10,9 +10,12 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, field_validator, ValidationError
 from bpsk_simulator import BPSKSimulator
+from typing import Literal
 import math
 import json
 import numpy as np
+import secrets
+import uuid
 
 app = FastAPI(
     title="CommDoctor API",
@@ -59,7 +62,9 @@ async def validate_request_body(request: Request, call_next):
     if request.method == "POST" and request.url.path in [
         "/api/simulate",
         "/api/fault-diagnosis",
-        "/api/apply-threshold"
+        "/api/apply-threshold",
+        "/api/challenges/diagnosis",
+        "/api/challenges/repair"
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -150,7 +155,10 @@ async def validate_request_body(request: Request, call_next):
 # 配置CORS，允许前端访问
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174"],
+    allow_origins=[
+        "http://localhost:5173", "http://localhost:5174",
+        "http://127.0.0.1:5173", "http://127.0.0.1:5174",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -226,6 +234,23 @@ class CustomThresholdRequest(BaseModel):
     @classmethod
     def validate_threshold(cls, v: float) -> float:
         """验证门限是有限数值"""
+        if not math.isfinite(v):
+            raise ValueError("threshold must be a finite number (not NaN or Infinity)")
+        return v
+
+
+class ChallengeDiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["dc_offset", "no_fault"]
+
+
+class ChallengeRepairRequest(BaseModel):
+    challenge_id: str
+    threshold: float = Field(..., ge=-5.0, le=5.0)
+
+    @field_validator('threshold')
+    @classmethod
+    def validate_challenge_threshold(cls, v: float) -> float:
         if not math.isfinite(v):
             raise ValueError("threshold must be a finite number (not NaN or Infinity)")
         return v
@@ -340,6 +365,8 @@ async def run_simulation(request: SimulationRequest):
 # E组修复：存储完整的发送比特和接收信号用于配对实验
 experiment_cache = {}
 MAX_CACHE_SIZE = 10  # F组修复：明确容量限制
+challenge_cache = {}
+MAX_CHALLENGE_CACHE_SIZE = 20
 
 
 @app.post("/api/fault-diagnosis")
@@ -445,6 +472,142 @@ async def apply_custom_threshold(request: CustomThresholdRequest):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Threshold application error: {str(e)}")
+
+
+@app.post("/api/challenges")
+async def create_diagnostic_challenge():
+    """Create a live DC-offset experiment while keeping the injected fault private."""
+    try:
+        offset = secrets.choice([-0.8, 0.8])
+        seed = secrets.randbits(32)
+        simulator = BPSKSimulator(seed=seed)
+        result = simulator.run_fault_diagnosis_experiment(
+            n_bits=10000, eb_n0_db=8.0, dc_offset=offset, sample_size=1000
+        )
+        tx_bits = result.pop('_tx_bits')
+        rx_with_fault = result.pop('_rx_with_fault')
+        challenge_id = str(uuid.uuid4())
+        if len(challenge_cache) >= MAX_CHALLENGE_CACHE_SIZE:
+            del challenge_cache[next(iter(challenge_cache))]
+        challenge_cache[challenge_id] = {
+            "dc_offset": offset,
+            "seed": seed,
+            "tx_bits": tx_bits,
+            "rx_with_fault": rx_with_fault,
+            "result": result,
+            "measurement_collected": False,
+            "diagnosis_correct": False,
+            "repair": None,
+        }
+        return {
+            "challenge_id": challenge_id,
+            "status": "observe",
+            "objective": "观察同一批 BPSK/AWGN 实验数据，收集证据，判断接收机是否存在 DC 偏移，再尝试修复判决门限。",
+            "eb_n0_db": result["eb_n0_db"],
+            "n_bits": result["n_bits"],
+            "ber_theoretical": result["ber_theoretical"],
+            "normal": result["normal"],
+            "with_fault": result["with_fault"],
+            "samples": result["samples"],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Challenge creation error: {str(e)}")
+
+
+@app.get("/api/challenges/{challenge_id}/measurement")
+async def measure_challenge(challenge_id: str):
+    challenge = challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    evidence = challenge["result"]["diagnosis"]["evidence"]
+    challenge["measurement_collected"] = True
+    return {
+        "status": "evidence_collected",
+        "rx_mean": evidence["rx_mean"],
+        "std_error": evidence["std_error"],
+        "threshold_3sigma": evidence["threshold_3sigma"],
+        "n_samples": evidence["n_samples"],
+        "noise_std": challenge["result"]["noise_std"],
+    }
+
+
+@app.post("/api/challenges/diagnosis")
+async def submit_challenge_diagnosis(request: ChallengeDiagnosisRequest):
+    challenge = challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["measurement_collected"]:
+        raise HTTPException(status_code=409, detail="Collect measurement evidence before submitting a diagnosis.")
+    actual_fault = challenge["dc_offset"] != 0.0
+    is_correct = (request.suspected_fault == "dc_offset") == actual_fault
+    challenge["diagnosis_correct"] = is_correct
+    if is_correct:
+        return {"correct": True, "status": "repair", "message": "判断正确。现在调整判决门限并比较实际 BER。"}
+    return {
+        "correct": False,
+        "status": "diagnose",
+        "message": "这个判断尚未得到测量证据支持。请结合接收均值和 3σ 界限重新分析后再试。",
+    }
+
+
+@app.post("/api/challenges/repair")
+async def repair_challenge(request: ChallengeRepairRequest):
+    challenge = challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis_correct"]:
+        raise HTTPException(status_code=409, detail="Submit a correct diagnosis before running the repair experiment.")
+    simulator = BPSKSimulator(seed=challenge["seed"])
+    try:
+        repaired = simulator.apply_custom_threshold(
+            challenge["tx_bits"], challenge["rx_with_fault"], request.threshold
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=f"Invalid repair: {str(e)}")
+    challenge["repair"] = repaired
+    before = challenge["result"]["with_fault"]
+    return {
+        "status": "repaired",
+        "before": before,
+        "after": repaired,
+        "improved": repaired["n_errors"] < before["n_errors"],
+    }
+
+
+@app.get("/api/challenges/{challenge_id}/feedback")
+async def challenge_feedback(challenge_id: str):
+    challenge = challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if not challenge["diagnosis_correct"]:
+        raise HTTPException(status_code=409, detail="Complete the diagnosis before viewing the answer.")
+    if challenge["repair"] is None:
+        raise HTTPException(status_code=409, detail="Run a threshold repair experiment before viewing feedback.")
+    result = challenge["result"]
+    repair = challenge["repair"]
+    before = result["with_fault"]
+    return {
+        "status": "complete",
+        "actual_fault": {"type": "dc_offset", "dc_offset": challenge["dc_offset"]},
+        "diagnosis_correct": challenge["diagnosis_correct"],
+        "evidence": result["diagnosis"]["evidence"],
+        "noise_std": result["noise_std"],
+        "repair": {
+            "before": before,
+            "after": repair,
+            "ideal_threshold_result": result["repaired"],
+            "improved": repair["n_errors"] < before["n_errors"],
+        },
+        "explanation": {
+            "fault_mechanism": "DC 偏移将接收样本整体平移：r = s + n + d。接收均值因此偏离零；当偏移方向与符号相反时，零门限会增加误判。",
+            "repair_mechanism": "把判决门限移到偏移对应的位置，可以恢复两类 BPSK 符号之间的分界。实际 BER 由本次同一批发送比特与接收样本重新判决计算。",
+            "coaching": (
+                "你的门限使误码数下降；可以再将它与均值估计及理想门限结果比较。"
+                if repair["n_errors"] < before["n_errors"] else
+                "本次门限没有降低误码数。可将测得的接收均值作为偏移估计，尝试把门限调到该估计附近，再观察配对 BER。"
+            ),
+        },
+    }
 
 
 if __name__ == "__main__":

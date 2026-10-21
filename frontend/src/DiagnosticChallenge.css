@@ -1,0 +1,31 @@
+.challenge-container { max-width: 1100px; }
+.challenge-eyebrow,.challenge-kicker { color: #38bdf8; font-size: .72rem; font-weight: 700; letter-spacing: .13em; }
+.challenge-intro,.challenge-section,.challenge-empty { background: #0f131c; border: 1px solid #263244; border-radius: 14px; padding: clamp(1.2rem,3vw,2rem); }
+.challenge-intro { display:flex; align-items:center; justify-content:space-between; gap:2rem; }
+.challenge-intro h2,.challenge-section h2,.challenge-empty h2 { margin:.35rem 0 .6rem; font-size:1.45rem; }
+.challenge-intro p,.challenge-section>p,.challenge-empty p,.challenge-note { color:#9ca3af; max-width:68ch; }
+.challenge-primary,.challenge-secondary { border:0; border-radius:8px; padding:.78rem 1rem; font-weight:700; cursor:pointer; white-space:nowrap; }
+.challenge-primary { background:#38bdf8; color:#071018; }.challenge-secondary { background:#1e293b; color:#e5e7eb; border:1px solid #3a4a60; }
+.challenge-primary:disabled,.challenge-secondary:disabled { opacity:.55; cursor:not-allowed; }
+.challenge-section-head { display:flex; justify-content:space-between; align-items:center; gap:1rem; margin-bottom:1rem; }
+.challenge-section-head h2 { margin-bottom:0; }
+.challenge-chip,.challenge-status { background:#182230; border:1px solid #2a384a; border-radius:999px; color:#b8c3d1; padding:.35rem .7rem; font-size:.78rem; white-space:nowrap; }
+.challenge-status.is-done { color:#6ee7b7; border-color:#27634f; }
+.challenge-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.8rem; margin:1.2rem 0; }
+.challenge-metrics article { background:#161d2b; border:1px solid #293447; border-radius:10px; padding:1rem; min-width:0; }
+.challenge-metrics article span,.challenge-metrics article em { display:block; color:#9ca3af; font-size:.82rem; font-style:normal; }
+.challenge-metrics article strong { display:block; margin:.3rem 0; font-size:1.35rem; font-variant-numeric:tabular-nums; overflow-wrap:anywhere; }
+.challenge-metrics article small { font-size:.75rem; color:#9ca3af; }
+.challenge-chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.challenge-plot { background:#0a0d12; border:1px solid #293447; border-radius:10px; padding:.8rem; min-width:0; }
+.challenge-plot h3 { font-size:.92rem; color:#d1d5db; }.challenge-plot svg { width:100%; display:block; }
+.challenge-legend { display:flex; gap:1rem; color:#9ca3af; justify-content:center; font-size:.75rem; }.challenge-legend span:first-child { color:#6ee7b7; }.challenge-legend span:last-child { color:#e9a568; }
+.challenge-note { font-size:.8rem; margin-top:.75rem; }
+.evidence-metrics { margin-bottom:0; }.challenge-choice { display:flex; align-items:center; flex-wrap:wrap; gap:1rem; margin-top:1rem; }
+.challenge-choice label { display:flex; align-items:center; gap:.5rem; background:#161d2b; border:1px solid #293447; border-radius:8px; padding:.7rem .9rem; color:#d1d5db; }
+.challenge-choice input { accent-color:#38bdf8; }
+.challenge-feedback { color:#f0b978; background:#2a2117; border-radius:8px; padding:.8rem 1rem; margin-top:1rem; }.challenge-feedback.positive { color:#6ee7b7; background:#12261f; }
+.challenge-threshold { max-width:660px; }.challenge-threshold label { display:flex; justify-content:space-between; margin:1rem 0 .5rem; color:#cbd5e1; }.challenge-threshold input { width:100%; margin-bottom:1rem; accent-color:#38bdf8; }
+.repair-metrics article:last-child strong { color:#6ee7b7; }.challenge-answer { display:flex; flex-wrap:wrap; align-items:baseline; gap:.5rem 1rem; padding:1rem; background:#13251f; border:1px solid #27634f; border-radius:9px; }.challenge-answer span { color:#9ca3af; }.challenge-answer strong { color:#6ee7b7; font-size:1.25rem; }
+.challenge-review { border-top:1px solid #293447; margin-top:1rem; padding-top:1rem; }.challenge-review h3 { color:#cbd5e1; font-size:.95rem; margin:.8rem 0 .25rem; }.challenge-review p { color:#9ca3af; }
+@media(max-width:700px) { .challenge-intro { align-items:flex-start; flex-direction:column; }.challenge-metrics { grid-template-columns:1fr; }.challenge-chart-grid { grid-template-columns:1fr; }.challenge-section-head { align-items:flex-start; flex-direction:column; } }
