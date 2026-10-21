@@ -7,6 +7,7 @@
 - Stage07 发布提交：`760d206b1fff7ba029e8f615ff70b4044bc14d8f`。
 - Author：`DemaciaForge <DemaciaForge@users.noreply.github.com>`；Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`。未添加 Co-authored-by。
 - 推送 `origin/main` 成功；随后 fetch 核对 `HEAD` 与 `origin/main` 均为 `760d206b1fff7ba029e8f615ff70b4044bc14d8f`。
+- 最终发布记录提交：`363c4851365353858c6b4fdc486f0a9e7577a180`；推送后核验最终 `main` 与 `origin/main` 一致。
 
 ## 信号模型与实现
 
