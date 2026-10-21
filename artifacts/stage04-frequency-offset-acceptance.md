@@ -50,3 +50,6 @@
 - 本报告编写时尚未提交或推送。
 - 计划只暂存本轮 Stage04 生产代码、测试和本报告；保留已有未跟踪文件 `artifacts/stage02-p2-round15-browser-acceptance.md`，不纳入提交。
 - 提交身份按要求设置为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`；提交 SHA 与推送/远端核验结果将在提交后更新本节。
+- Stage04 功能提交：`0707a06a40bd43c5d9bce10ee2787122b6226edb`，Author/Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。
+- `git push origin main` 成功；推送后 `git ls-remote origin refs/heads/main` 与本地 HEAD 均为 `0707a06a40bd43c5d9bce10ee2787122b6226edb`。
+- 验收报告随后单独更新并提交；原有未跟踪 `artifacts/stage02-p2-round15-browser-acceptance.md` 保持未跟踪、未暂存。
