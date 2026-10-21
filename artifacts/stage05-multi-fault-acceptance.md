@@ -50,3 +50,5 @@
 ## Git 交付
 
 本报告随 Stage05 功能提交。提交前仅暂存 Stage05 代码、测试、页面和本报告；原有未跟踪 `artifacts/stage02-p2-round15-browser-acceptance.md` 保持未修改、未暂存。提交作者与提交者使用 `DemaciaForge <DemaciaForge@users.noreply.github.com>`；推送后在此记录本地与远程 SHA。
+- Stage05 功能提交：`fcb168ccc78e9093917c5bcb3cd84bd5a847507f`，Author/Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。
+- `git push origin main` 已成功；推送后远程 `refs/heads/main` 与该提交一致。
