@@ -18,6 +18,14 @@ from frequency_offset import (
     phase_track,
     simulate_bpsk_frequency_offset,
 )
+from multi_fault import (
+    DC_MAGNITUDE,
+    FAULT_SCENARIOS,
+    FREQUENCY_MAGNITUDE,
+    apply_compensation,
+    estimate_multi_fault,
+    simulate_multi_fault,
+)
 from typing import Literal
 import math
 import json
@@ -74,7 +82,9 @@ async def validate_request_body(request: Request, call_next):
         "/api/challenges/diagnosis",
         "/api/challenges/repair",
         "/api/stage04/challenges/diagnosis",
-        "/api/stage04/challenges/compensate"
+        "/api/stage04/challenges/compensate",
+        "/api/stage05/challenges/diagnosis",
+        "/api/stage05/challenges/compensate"
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -283,6 +293,25 @@ class FrequencyCompensationRequest(BaseModel):
         return value
 
 
+class MultiFaultDiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["none", "dc_offset", "frequency_offset", "both"]
+
+
+class MultiFaultCompensationRequest(BaseModel):
+    challenge_id: str
+    mode: Literal["dc", "frequency", "both"]
+    dc_hat: float = Field(..., ge=-2.0, le=2.0)
+    epsilon_hat: float = Field(..., gt=-0.25, lt=0.25)
+
+    @field_validator("dc_hat", "epsilon_hat", mode="before")
+    @classmethod
+    def validate_multi_fault_input(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("compensation parameters must be finite real numbers")
+        return value
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -396,6 +425,8 @@ challenge_cache = {}
 MAX_CHALLENGE_CACHE_SIZE = 20
 frequency_challenge_cache = {}
 MAX_FREQUENCY_CHALLENGE_CACHE_SIZE = 20
+multi_fault_challenge_cache = {}
+MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE = 20
 
 
 @app.post("/api/fault-diagnosis")
@@ -777,6 +808,119 @@ async def frequency_challenge_feedback(challenge_id: str):
                 "本次补偿未降低误码数；请结合估计误差、噪声和补偿值分析。BER 是有限样本统计量，不保证每次实验都达到理论值。"
             ),
             "limitations": "平方信号频谱估计要求 |ε|<0.25 cycles/symbol；有限长度、频谱峰值插值精度、AWGN 和低 SNR 会带来估计波动。零频偏挑战使用 0.002 cycles/symbol 死区，以避免把测量噪声当作故障。",
+        },
+    }
+
+
+@app.post("/api/stage05/challenges")
+async def create_multi_fault_challenge():
+    """Create a unified complex-baseband challenge with hidden fault combination."""
+    scenario = secrets.choice(FAULT_SCENARIOS)
+    dc_offset = secrets.choice([DC_MAGNITUDE, -DC_MAGNITUDE]) if scenario in ("dc_offset", "both") else 0.0
+    epsilon = secrets.choice([FREQUENCY_MAGNITUDE, -FREQUENCY_MAGNITUDE]) if scenario in ("frequency_offset", "both") else 0.0
+    seed = secrets.randbits(32)
+    experiment = simulate_multi_fault(
+        seed=seed, scenario=scenario, dc_offset=dc_offset, epsilon=epsilon,
+        n_symbols=4096, eb_n0_db=8.0,
+    )
+    challenge_id = str(uuid.uuid4())
+    if len(multi_fault_challenge_cache) >= MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE:
+        del multi_fault_challenge_cache[next(iter(multi_fault_challenge_cache))]
+    multi_fault_challenge_cache[challenge_id] = {
+        **experiment, "scenario": scenario, "dc_offset": dc_offset, "epsilon": epsilon,
+        "seed": seed, "measurement": None, "diagnosis": None, "compensation": {},
+    }
+    received = experiment["received"][::8]
+    return {
+        "challenge_id": challenge_id, "status": "observe",
+        "objective": "观察统一复基带信号，区分无故障、DC 偏移、频率偏移或两者同时存在，并按顺序尝试补偿。",
+        "n_symbols": experiment["n_symbols"], "eb_n0_db": experiment["eb_n0_db"],
+        "ber_theoretical": experiment["ber_theoretical"], "before": experiment["before"],
+        "dc_unit": "接收端 I 路幅度单位", "epsilon_unit": "cycles per symbol (Δf·Ts)",
+        "epsilon_unambiguous_range": [-MAX_UNAMBIGUOUS_OFFSET, MAX_UNAMBIGUOUS_OFFSET],
+        "signal": {
+            "i": [float(v) for v in received.real], "q": [float(v) for v in received.imag],
+            "mean_i": float(np.mean(experiment["received"].real)),
+            "mean_q": float(np.mean(experiment["received"].imag)),
+            "phase_rad": phase_track(experiment["received"], count=512)[::8],
+            "constellation": [{"i": float(z.real), "q": float(z.imag)} for z in received],
+        },
+    }
+
+
+@app.get("/api/stage05/challenges/{challenge_id}/measurement")
+async def measure_multi_fault_challenge(challenge_id: str):
+    challenge = multi_fault_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    measured = estimate_multi_fault(challenge["received"])
+    challenge["measurement"] = {"dc_hat": measured["dc_hat"], "epsilon_hat": measured["epsilon_hat"]}
+    return {
+        "status": "measured", "dc_hat": measured["dc_hat"], "epsilon_hat": measured["epsilon_hat"],
+        "dc_unit": "接收端 I 路幅度单位", "epsilon_unit": "cycles per symbol (Δf·Ts)",
+        "epsilon_unambiguous_range": [-MAX_UNAMBIGUOUS_OFFSET, MAX_UNAMBIGUOUS_OFFSET],
+        "dc_method": "接收 I 路实部均值；频偏存在时会有有限样本误差。",
+        "epsilon_method": "先减去 DC 测量值，再对平方 BPSK 信号做零填充 FFT 谱峰估计。",
+    }
+
+
+@app.post("/api/stage05/challenges/diagnosis")
+async def diagnose_multi_fault_challenge(request: MultiFaultDiagnosisRequest):
+    challenge = multi_fault_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["measurement"] is None:
+        raise HTTPException(status_code=409, detail="Collect measurements before submitting a diagnosis.")
+    correct = request.suspected_fault == challenge["scenario"]
+    challenge["diagnosis"] = {"suspected_fault": request.suspected_fault, "correct": correct}
+    if correct:
+        return {"correct": True, "status": "compensate", "message": "判断正确。请使用测量值执行分步补偿。"}
+    return {"correct": False, "status": "diagnose", "message": "当前判断与测量证据不一致，请继续检查均值和相位轨迹后重试。"}
+
+
+@app.post("/api/stage05/challenges/compensate")
+async def compensate_multi_fault_challenge(request: MultiFaultCompensationRequest):
+    challenge = multi_fault_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis"] is None or challenge["diagnosis"]["correct"] is not True:
+        raise HTTPException(status_code=409, detail="Submit a correct diagnosis before running compensation.")
+    try:
+        corrected = apply_compensation(challenge["received"], request.dc_hat, request.epsilon_hat, request.mode)
+        result = calculate_bpsk_ber(challenge["bits"], corrected)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    output = {"mode": request.mode, "dc_hat": request.dc_hat, "epsilon_hat": request.epsilon_hat, **result}
+    challenge["compensation"][request.mode] = output
+    return {
+        "status": "compensated", "mode": request.mode,
+        "before": challenge["before"], "after": result,
+        "dc_hat": request.dc_hat, "epsilon_hat": request.epsilon_hat,
+        "all_results": challenge["compensation"],
+    }
+
+
+@app.get("/api/stage05/challenges/{challenge_id}/feedback")
+async def multi_fault_challenge_feedback(challenge_id: str):
+    challenge = multi_fault_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis"] is None or challenge["diagnosis"]["correct"] is not True:
+        raise HTTPException(status_code=409, detail="Complete the diagnosis before viewing feedback.")
+    if not challenge["compensation"]:
+        raise HTTPException(status_code=409, detail="Run at least one compensation experiment before viewing feedback.")
+    measurement = challenge["measurement"]
+    return {
+        "status": "complete",
+        "actual_fault": {"scenario": challenge["scenario"], "dc_offset": challenge["dc_offset"], "epsilon": challenge["epsilon"]},
+        "diagnosis": challenge["diagnosis"], "measurement": measurement,
+        "compensation": challenge["compensation"],
+        "ber": {"theoretical": challenge["ber_theoretical"], "before": challenge["before"], "stages": challenge["compensation"]},
+        "lesson": {
+            "model": "r[n] = a[n]·exp(j·2π·ε·n) + d + w[n]；d 是频率旋转后加入的接收端 I 路 DC 偏移。",
+            "order": "先用 I 路均值估计并移除 d，再对 DC 校正后的平方 BPSK 信号估计 ε，最后按相反方向旋转补偿频偏。",
+            "explanation": "仅补偿一种故障时，另一种故障仍保留；联合结果来自同一发送比特、噪声和接收样本。",
+            "limitations": "均值和谱峰估计受有限样本、AWGN、参数误差影响；频偏估计范围为 |ε|<0.25 cycles/symbol。",
         },
     }
 
