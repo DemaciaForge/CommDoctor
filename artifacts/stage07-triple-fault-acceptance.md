@@ -4,7 +4,9 @@
 
 - 初始分支：`main`；初始 HEAD 与 `origin/main`：`fc471f3ced6669a9d0df95bbdfa33dc5c1895ab6`。
 - 开始时工作树已有未跟踪文件 `artifacts/stage02-p2-round15-browser-acceptance.md`；本轮保留且不纳入提交。
-- Stage07 发布提交：`760d206b1fff7ba029e8f615ff70b4044bc14d8f`。\n- Author：`DemaciaForge <DemaciaForge@users.noreply.github.com>`；Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`。未添加 Co-authored-by。\n- 推送 `origin/main` 成功；随后 fetch 核对 `HEAD` 与 `origin/main` 均为 `760d206b1fff7ba029e8f615ff70b4044bc14d8f`。
+- Stage07 发布提交：`760d206b1fff7ba029e8f615ff70b4044bc14d8f`。
+- Author：`DemaciaForge <DemaciaForge@users.noreply.github.com>`；Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`。未添加 Co-authored-by。
+- 推送 `origin/main` 成功；随后 fetch 核对 `HEAD` 与 `origin/main` 均为 `760d206b1fff7ba029e8f615ff70b4044bc14d8f`。
 
 ## 信号模型与实现
 
