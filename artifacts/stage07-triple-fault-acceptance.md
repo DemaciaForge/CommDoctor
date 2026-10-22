@@ -19,10 +19,10 @@
 
 专项自动化测试按固定 seed 对八种场景逐一验证故障掩码与完全可复现的 bits/noise/received。API 创建响应未泄露场景、真实参数或参考 BER；诊断错误可重试；四种补偿、非法非有限输入拒绝均有专项覆盖。正负频偏、DC/相位误差、模 π 相位范围和正常对照亦有确定性测试。
 
-- Stage07：`19 passed`。
-- 后端全量：`471 passed, 5 warnings`（已有数值边界测试触发的 NumPy overflow warnings 和 httpx deprecation warnings；未影响结果）。
-- 前端 `npm run build`：TypeScript 与 Vite production build 通过。
-- 前端 `npm run lint`：通过。
+- Stage07：`66 passed`（含 2025-07 新增 47 条模拟器/估计器/补偿器输入验证合约测试）。
+- 后端全量：`518 passed, 5 warnings`（已有数值边界测试触发的 NumPy overflow warnings 和 httpx deprecation warnings；未影响结果）。
+- 前端 `npm run build`：TypeScript 与 Vite production build 通过（30 modules, 288 kB JS）。
+- 前端 `npm run lint`：通过（oxlint，无错误）。
 - `git diff --check`：通过。
 
 ## 浏览器端到端验收
@@ -51,3 +51,11 @@
 - P3：保留现有测试告警，无需阻断本轮发布。
 - 作者及提交者使用 `DemaciaForge <DemaciaForge@users.noreply.github.com>`；不添加共同作者元数据。
 - 本轮启动的 8001/5174 服务在验收后停止；原先 8000/5173 服务保持运行。
+
+## Stage07 输入验证加固（事后提交）
+
+- 提交：`ca322ec`（`Harden Stage07 triple-fault input validation and add contract tests`）。
+- 内容：`simulate_triple_fault` 增加 `n_symbols` 范围 [128, 1 000 000] 和 `eb_n0_db` 范围 [-10, 30] 的提前验证；`estimate_triple` 和 `compensate_triple` 增加对 received 信号形状、dtype、有限性及安全幅度的前置检查；`compensate_triple` 增加对 dc_hat/epsilon_hat/phi_hat_rad 的有限实数合约验证。
+- 新增 47 条参数化测试（参数边界接受、越界拒绝、非有限标量拒绝、信号 dtype/shape 拒绝）。
+- 作者及提交者：`DemaciaForge <DemaciaForge@users.noreply.github.com>`。
+- 全量测试：`518 passed, 5 warnings`；前端 build/lint 通过。
