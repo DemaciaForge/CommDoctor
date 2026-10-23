@@ -1,7 +1,7 @@
 # CommDoctor Stage01–Stage07 Stage A 核心体验实施与验收
 
-日期：2026-10-23（Asia/Shanghai）  
-项目：`D:\CommDoctor\projects\CommDoctor-main`  
+日期：2026-10-23（Asia/Shanghai）
+项目：`D:\CommDoctor\projects\CommDoctor-main`
 目标远端：`https://github.com/DemaciaForge/CommDoctor`，分支 `main`
 
 ## 1. Git 与工作区基线
