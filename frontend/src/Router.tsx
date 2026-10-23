@@ -6,6 +6,7 @@ import FrequencyOffsetApp from './FrequencyOffsetApp';
 import MultiFaultApp from './MultiFaultApp';
 import PhaseOffsetApp from './PhaseOffsetApp';
 import TripleFaultApp from './TripleFaultApp';
+import AppShell from './AppShell';
 
 /**
  * 简单的 Hash 路由组件
@@ -21,88 +22,14 @@ export default function Router() {
   useEffect(() => {
     const handleHashChange = () => {
       setRoute(window.location.hash.slice(1) || '/');
+      window.scrollTo({ top: 0, behavior: 'auto' });
     };
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  // 导航栏
-  const nav = (
-    <nav style={{
-      background: '#0A0D12',
-      borderBottom: '1px solid #1E2636',
-      padding: '0.75rem 1.5rem',
-      display: 'flex',
-      gap: '1rem',
-      alignItems: 'center'
-    }}>
-      <span style={{ color: '#6EE7B7', fontWeight: 600 }}>CommDoctor</span>
-      <a
-        href="#/"
-        style={{
-          color: route === '/' ? '#38BDF8' : '#9CA3AF',
-          textDecoration: 'none',
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          background: route === '/' ? '#161D2B' : 'transparent'
-        }}
-      >
-        Stage01 仿真
-      </a>
-      <a
-        href="#/stage02"
-        style={{
-          color: route === '/stage02' ? '#38BDF8' : '#9CA3AF',
-          textDecoration: 'none',
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          background: route === '/stage02' ? '#161D2B' : 'transparent'
-        }}
-      >
-        Stage02 故障诊断
-      </a>
-      <a
-        href="#/stage03"
-        style={{
-          color: route === '/stage03' ? '#38BDF8' : '#9CA3AF',
-          textDecoration: 'none',
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          background: route === '/stage03' ? '#161D2B' : 'transparent'
-        }}
-      >
-        Stage03 诊断挑战
-      </a>
-      <a
-        href="#/stage04"
-        style={{
-          color: route === '/stage04' ? '#38BDF8' : '#9CA3AF',
-          textDecoration: 'none',
-          padding: '0.5rem 1rem',
-          borderRadius: '6px',
-          background: route === '/stage04' ? '#161D2B' : 'transparent'
-        }}
-      >
-        Stage04 频偏诊断
-      </a>
-      <a
-        href="#/stage05"
-        style={{
-          color: route === '/stage05' ? '#C084FC' : '#9CA3AF',
-          textDecoration: 'none', padding: '0.5rem 1rem', borderRadius: '6px',
-          background: route === '/stage05' ? '#211B2C' : 'transparent'
-        }}
-      >
-        Stage05 联合诊断
-      </a>
-      <a href="#/stage06" style={{color:route==='/stage06'?'#38BDF8':'#9CA3AF',textDecoration:'none',padding:'0.5rem 1rem',borderRadius:'6px',background:route==='/stage06'?'#161D2B':'transparent'}}>Stage06 载波相位</a>
-      <a href="#/stage07" style={{color:route==='/stage07'?'#38BDF8':'#9CA3AF',textDecoration:'none',padding:'0.5rem 1rem',borderRadius:'6px',background:route==='/stage07'?'#161D2B':'transparent'}}>Stage07 三故障</a>
-    </nav>
-  );
-
   return (
-    <>
-      {nav}
+    <AppShell route={route}>
       {route === '/' && <App />}
       {route === '/stage02' && <FaultDiagnosisApp />}
       {route === '/stage03' && <DiagnosticChallengeApp />}
@@ -110,6 +37,6 @@ export default function Router() {
       {route === '/stage05' && <MultiFaultApp />}
       {route === '/stage06' && <PhaseOffsetApp />}
       {route === '/stage07' && <TripleFaultApp />}
-    </>
+    </AppShell>
   );
 }

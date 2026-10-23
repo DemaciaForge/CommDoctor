@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import './FaultDiagnosis.css'
+import { apiRequest, apiUrl } from './api'
 
 interface DiagnosisResult {
   experiment_id: string
@@ -100,7 +101,7 @@ function FaultDiagnosisApp() {
         sample_size: 1000
       }
 
-      const response = await fetch('http://127.0.0.1:8000/api/fault-diagnosis', {
+      const data = await apiRequest<DiagnosisResult>(apiUrl('/api/fault-diagnosis'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,12 +109,6 @@ function FaultDiagnosisApp() {
         body: JSON.stringify(requestBody),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || '实验失败')
-      }
-
-      const data = await response.json()
       setResult(data)
       setCustomThreshold(data.diagnosis.suggested_threshold)
     } catch (err) {
@@ -127,7 +122,7 @@ function FaultDiagnosisApp() {
     if (!result) return
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/apply-threshold', {
+      const data = await apiRequest<CustomThresholdResult>(apiUrl('/api/apply-threshold'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -138,12 +133,6 @@ function FaultDiagnosisApp() {
         }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || '应用门限失败')
-      }
-
-      const data = await response.json()
       setCustomResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : '未知错误')
@@ -164,7 +153,7 @@ function FaultDiagnosisApp() {
 
           <div className="control-group">
             <label htmlFor="ebN0">
-              Eb/N0 (dB): <strong>{ebN0}</strong>
+              Eb/N0（信噪比，dB）：<strong>{ebN0}</strong>
             </label>
             <input
               id="ebN0"
@@ -211,12 +200,14 @@ function FaultDiagnosisApp() {
             <label className="switch">
               <input
                 type="checkbox"
+                aria-label="启用 DC 偏移故障注入"
+                aria-describedby="fault-status"
                 checked={faultEnabled}
                 onChange={(e) => setFaultEnabled(e.target.checked)}
               />
               <span className="slider"></span>
             </label>
-            <span className="fault-status">
+            <span id="fault-status" className="fault-status" aria-live="polite">
               {faultEnabled ? '✗ 已注入DC偏移故障' : '✓ 无故障'}
             </span>
           </div>
@@ -224,7 +215,7 @@ function FaultDiagnosisApp() {
           {faultEnabled && (
             <div className="control-group">
               <label htmlFor="dcOffset">
-                DC偏移值: <strong>{dcOffset.toFixed(2)}</strong>
+                DC 偏移（接收信号的恒定 I 路偏置）: <strong>{dcOffset.toFixed(2)}</strong>
               </label>
               <input
                 id="dcOffset"
@@ -248,7 +239,7 @@ function FaultDiagnosisApp() {
           </button>
 
           {error && (
-            <div className="error-message">
+            <div className="error-message" role="alert">
               ⚠️ {error}
             </div>
           )}
@@ -320,7 +311,7 @@ function FaultDiagnosisApp() {
               <div className="repair-controls">
                 <div className="control-group">
                   <label htmlFor="customThreshold">
-                    判决门限: <strong>{customThreshold.toFixed(2)}</strong>
+                    判决门限（把接收值分成 0/1 的参考线）: <strong>{customThreshold.toFixed(2)}</strong>
                   </label>
                   <input
                     id="customThreshold"
@@ -345,9 +336,8 @@ function FaultDiagnosisApp() {
                   onClick={() => {
                     const suggestedValue = result.diagnosis.suggested_threshold
                     setCustomThreshold(suggestedValue)
-                    // 直接使用确定的值，避免闭包读取旧state
-                    setTimeout(() => {
-                      fetch('http://127.0.0.1:8000/api/apply-threshold', {
+                    // 直接使用确定的值，避免闭包读取旧 state
+                    void apiRequest<CustomThresholdResult>(apiUrl('/api/apply-threshold'), {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -356,18 +346,7 @@ function FaultDiagnosisApp() {
                           experiment_id: result.experiment_id,
                           threshold: suggestedValue
                         }),
-                      })
-                        .then(response => {
-                          if (!response.ok) {
-                            return response.json().then(errorData => {
-                              throw new Error(errorData.detail || '应用门限失败')
-                            })
-                          }
-                          return response.json()
-                        })
-                        .then(data => setCustomResult(data))
-                        .catch(err => setError(err instanceof Error ? err.message : '未知错误'))
-                    }, 0)
+                      }).then(data => setCustomResult(data)).catch(err => setError(err instanceof Error ? err.message : '操作失败，请重试'))
                   }}
                 >
                   使用建议门限

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import './App.css'
+import { apiRequest, apiUrl } from './api'
 
 interface SimulationResult {
   eb_n0_db: number
@@ -49,7 +50,7 @@ function App() {
         sample_size: 1000
       }
 
-      const response = await fetch('http://127.0.0.1:8000/api/simulate', {
+      const data = await apiRequest<SimulationResult>(apiUrl('/api/simulate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -57,12 +58,6 @@ function App() {
         body: JSON.stringify(requestBody),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Simulation failed')
-      }
-
-      const data = await response.json()
       setResult(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error occurred')
@@ -84,7 +79,7 @@ function App() {
 
           <div className="control-group">
             <label htmlFor="ebN0">
-              Eb/N0 (dB): <strong>{ebN0}</strong>
+            Eb/N0 (信噪比，dB): <strong>{ebN0}</strong>
             </label>
             <input
               id="ebN0"
@@ -112,7 +107,7 @@ function App() {
           </div>
 
           <div className="control-group">
-            <label htmlFor="seed">随机种子 (可选):</label>
+            <label htmlFor="seed">随机种子（可选，用于复现实验）:</label>
             <input
               id="seed"
               type="text"
@@ -131,7 +126,7 @@ function App() {
           </button>
 
           {error && (
-            <div className="error-message">
+            <div className="error-message" role="alert">
               ⚠️ {error}
             </div>
           )}

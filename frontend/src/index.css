@@ -2,3 +2,12 @@ body {
   margin: 0;
   padding: 0;
 }
+
+button, a, input, select { touch-action: manipulation; }
+:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
+button:disabled { cursor: not-allowed; }
+[role='alert'] { border-left: 3px solid #fca5a5; }
+[role='status'] { border-left: 3px solid #6ee7b7; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

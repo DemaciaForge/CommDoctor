@@ -1,0 +1,23 @@
+.app-shell { min-height: 100vh; background: #05070c; color: #e5e7eb; }
+.app-nav { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 1rem; padding: .65rem clamp(1rem, 3vw, 2rem); background: rgba(10, 13, 18, .97); border-bottom: 1px solid #263244; }
+.app-brand { display: inline-flex; align-items: center; gap: .55rem; flex: 0 0 auto; color: #e5e7eb; text-decoration: none; font-weight: 700; letter-spacing: .01em; }
+.app-brand-mark { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: .55rem; color: #071018; background: #6ee7b7; font-size: .72rem; }
+.app-nav-links { display: flex; flex: 1; gap: .35rem; flex-wrap: wrap; min-width: 0; }
+.app-nav-links a { display: inline-flex; align-items: center; gap: .35rem; min-height: 2.45rem; padding: .42rem .65rem; border-radius: .5rem; color: #aab5c5; text-decoration: none; font-size: .88rem; line-height: 1.2; transition: background-color .15s ease, color .15s ease; }
+.app-nav-links a:hover { color: #e5e7eb; background: #161d2b; }
+.app-nav-links a.is-current { color: #071018; background: #6ee7b7; font-weight: 700; }
+.app-nav-number { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .72rem; opacity: .8; }
+.app-stage-bar { display: flex; align-items: center; gap: .65rem; max-width: 1400px; margin: 0 auto; padding: .65rem clamp(1rem, 3vw, 2rem); color: #94a3b8; font-size: .82rem; }
+.app-stage-bar strong { color: #d1fae5; }
+.app-stage-hint { margin-left: auto; color: #64748b; }
+@media (max-width: 760px) {
+  .app-nav { align-items: flex-start; flex-direction: column; gap: .6rem; }
+  .app-nav-links { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-nav-links a { min-width: 0; }
+  .app-stage-bar { align-items: flex-start; flex-wrap: wrap; }
+  .app-stage-hint { flex-basis: 100%; margin-left: 0; }
+}
+@media (max-width: 390px) {
+  .app-nav-links a { padding-inline: .45rem; font-size: .78rem; }
+  .app-nav-number { display: none; }
+}

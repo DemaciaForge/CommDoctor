@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import './FaultDiagnosis.css'
 import './DiagnosticChallenge.css'
+import { apiRequest, apiUrl } from './api'
 
 type Challenge = {
   challenge_id: string
@@ -38,17 +39,7 @@ type Feedback = {
   explanation: { fault_mechanism: string; repair_mechanism: string; coaching: string }
 }
 
-const API = 'http://127.0.0.1:8000/api/challenges'
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
-  const data = await response.json()
-  if (!response.ok) {
-    const detail = data.detail
-    throw new Error(typeof detail === 'string' ? detail : '请求失败，请重试')
-  }
-  return data as T
-}
+const API = apiUrl('/api/challenges')
 
 function DiagnosticChallengeApp() {
   const [challenge, setChallenge] = useState<Challenge | null>(null)
@@ -71,7 +62,7 @@ function DiagnosticChallengeApp() {
   }
 
   const startChallenge = () => run(async () => {
-    const next = await request<Challenge>(API, { method: 'POST' })
+    const next = await apiRequest<Challenge>(API, { method: 'POST' })
     setChallenge(next)
     setMeasurement(null)
     setDiagnosisMessage('')
@@ -81,13 +72,13 @@ function DiagnosticChallengeApp() {
   })
 
   const collectMeasurement = () => challenge && run(async () => {
-    const evidence = await request<Measurement>(`${API}/${challenge.challenge_id}/measurement`)
+    const evidence = await apiRequest<Measurement>(`${API}/${challenge.challenge_id}/measurement`)
     setMeasurement(evidence)
     setThreshold(Number(evidence.rx_mean.toFixed(2)))
   })
 
   const submitDiagnosis = () => challenge && run(async () => {
-    const result = await request<{ correct: boolean; message: string }>(`${API}/diagnosis`, {
+    const result = await apiRequest<{ correct: boolean; message: string }>(`${API}/diagnosis`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challenge_id: challenge.challenge_id, suspected_fault: diagnosis }),
     })
@@ -96,12 +87,12 @@ function DiagnosticChallengeApp() {
   })
 
   const runRepair = () => challenge && run(async () => {
-    const result = await request<Repair>(`${API}/repair`, {
+    const result = await apiRequest<Repair>(`${API}/repair`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challenge_id: challenge.challenge_id, threshold }),
     })
     setRepair(result)
-    const report = await request<Feedback>(`${API}/${challenge.challenge_id}/feedback`)
+    const report = await apiRequest<Feedback>(`${API}/${challenge.challenge_id}/feedback`)
     setFeedback(report)
   })
 
@@ -115,7 +106,7 @@ function DiagnosticChallengeApp() {
       <main className="container fault-diagnosis-container challenge-container">
         <section className="challenge-intro">
           <div><span className="challenge-kicker">交互式实验 · DC 偏移</span><h2>找出接收机里的异常</h2>
-            <p>{challenge?.objective ?? '启动一轮随机生成的 BPSK/AWGN 通信实验。故障参数由实验服务保管；你将查看波形和 BER，主动收集测量证据，再提交诊断。'}</p>
+            <p>{challenge?.objective ?? '启动一轮随机生成的 BPSK/AWGN 通信实验。BER（误码率）表示错误比特占全部比特的比例；故障参数由实验服务保管。先观察波形，再收集测量证据并提交诊断。'}</p>
           </div>
           <button className="challenge-primary" onClick={startChallenge} disabled={loading}>{challenge ? '重新开始挑战' : '开始挑战'}</button>
         </section>
@@ -139,7 +130,7 @@ function DiagnosticChallengeApp() {
 
           <section className="challenge-section">
             <div className="challenge-section-head"><div><span className="challenge-kicker">02 / MEASURE</span><h2>收集测量证据</h2></div><span className={`challenge-status ${measurement ? 'is-done' : ''}`}>{measurement ? '证据已收集' : '待测量'}</span></div>
-            <p>计算接收信号均值，并与均值估计的 3σ 界限比较。测量值来自本次实际接收样本。</p>
+            <p>计算接收信号均值，并与均值估计的 3σ 界限比较。DC 偏移会让均值持续偏离零；测量值来自本次实际接收样本。</p>
             <button className="challenge-secondary" onClick={collectMeasurement} disabled={loading}>{measurement ? '重新测量' : '测量接收均值'}</button>
             {measurement && <div className="challenge-metrics evidence-metrics">
               <article><span>接收均值</span><strong>{measurement.rx_mean.toFixed(4)}</strong></article>

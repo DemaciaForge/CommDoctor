@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import './MultiFault.css'
+import { apiRequest, apiUrl } from './api'
 
 type Scenario = 'none' | 'dc_offset' | 'frequency_offset' | 'both'
 type Challenge = { challenge_id: string; objective: string; n_symbols: number; eb_n0_db: number; ber_theoretical: number; before: { ber: number; n_errors: number }; dc_unit: string; epsilon_unit: string; signal: { i: number[]; q: number[]; mean_i: number; mean_q: number; phase_rad: number[]; constellation: { i: number; q: number }[] } }
@@ -8,14 +9,8 @@ type Measurement = { dc_hat: number; epsilon_hat: number; dc_unit: string; epsil
 type Stage = { mode: string; dc_hat: number; epsilon_hat: number; n_errors: number; ber: number }
 type Feedback = { actual_fault: { scenario: Scenario; dc_offset: number; epsilon: number }; diagnosis: { suspected_fault: Scenario; correct: boolean }; measurement: Measurement; compensation: Record<string, Stage>; ber: { theoretical: number; before: { ber: number; n_errors: number }; stages: Record<string, Stage> }; lesson: { model: string; order: string; explanation: string; limitations: string } }
 
-const API = 'http://127.0.0.1:8000/api/stage05/challenges'
+const API = apiUrl('/api/stage05/challenges')
 const labels: Record<Scenario, string> = { none: '无故障', dc_offset: '仅 DC 偏移', frequency_offset: '仅频率偏移', both: 'DC 与频率偏移' }
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init); const data = await response.json()
-  if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : '请求失败，请重试')
-  return data as T
-}
 
 export default function MultiFaultApp() {
   const [challenge, setChallenge] = useState<Challenge | null>(null); const [measurement, setMeasurement] = useState<Measurement | null>(null)
@@ -23,10 +18,10 @@ export default function MultiFaultApp() {
   const [dcInput, setDcInput] = useState('0'); const [epsilonInput, setEpsilonInput] = useState('0'); const [stages, setStages] = useState<Record<string, Stage>>({}); const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [busy, setBusy] = useState(false); const [error, setError] = useState('')
   const action = async (work: () => Promise<void>) => { setBusy(true); setError(''); try { await work() } catch (e) { setError(e instanceof Error ? e.message : '操作失败，请重试') } finally { setBusy(false) } }
-  const start = () => action(async () => { const next = await request<Challenge>(API, { method: 'POST' }); setChallenge(next); setMeasurement(null); setDiagnosisCorrect(false); setMessage(''); setStages({}); setFeedback(null); setDcInput('0'); setEpsilonInput('0') })
-  const measure = () => challenge && action(async () => { const m = await request<Measurement>(`${API}/${challenge.challenge_id}/measurement`); setMeasurement(m); setDcInput(m.dc_hat.toFixed(6)); setEpsilonInput(m.epsilon_hat.toFixed(6)) })
-  const diagnose = () => challenge && action(async () => { const r = await request<{ correct: boolean; message: string }>(`${API}/diagnosis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challenge_id: challenge.challenge_id, suspected_fault: choice }) }); setDiagnosisCorrect(r.correct); setMessage(r.message) })
-  const compensate = (mode: 'dc' | 'frequency' | 'both') => challenge && action(async () => { const dc = Number(dcInput); const epsilon = Number(epsilonInput); if (!Number.isFinite(dc) || Math.abs(dc) > 2 || !Number.isFinite(epsilon) || Math.abs(epsilon) >= .25) throw new Error('请输入有限且在允许范围内的 DC 与归一化频偏参数。'); const r = await request<{ all_results: Record<string, Stage> }>(`${API}/compensate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challenge_id: challenge.challenge_id, mode, dc_hat: dc, epsilon_hat: epsilon }) }); setStages(r.all_results); setFeedback(await request<Feedback>(`${API}/${challenge.challenge_id}/feedback`)) })
+  const start = () => action(async () => { const next = await apiRequest<Challenge>(API, { method: 'POST' }); setChallenge(next); setMeasurement(null); setDiagnosisCorrect(false); setMessage(''); setStages({}); setFeedback(null); setDcInput('0'); setEpsilonInput('0') })
+  const measure = () => challenge && action(async () => { const m = await apiRequest<Measurement>(`${API}/${challenge.challenge_id}/measurement`); setMeasurement(m); setDcInput(m.dc_hat.toFixed(6)); setEpsilonInput(m.epsilon_hat.toFixed(6)) })
+  const diagnose = () => challenge && action(async () => { const r = await apiRequest<{ correct: boolean; message: string }>(`${API}/diagnosis`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challenge_id: challenge.challenge_id, suspected_fault: choice }) }); setDiagnosisCorrect(r.correct); setMessage(r.message) })
+  const compensate = (mode: 'dc' | 'frequency' | 'both') => challenge && action(async () => { const dc = Number(dcInput); const epsilon = Number(epsilonInput); if (!Number.isFinite(dc) || Math.abs(dc) > 2 || !Number.isFinite(epsilon) || Math.abs(epsilon) >= .25) throw new Error('请输入有限且在允许范围内的 DC 与归一化频偏参数。'); const r = await apiRequest<{ all_results: Record<string, Stage> }>(`${API}/compensate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challenge_id: challenge.challenge_id, mode, dc_hat: dc, epsilon_hat: epsilon }) }); setStages(r.all_results); setFeedback(await apiRequest<Feedback>(`${API}/${challenge.challenge_id}/feedback`)) })
   return <div className="app"><header className="header multifault-header"><p className="mf-eyebrow">JOINT DIAGNOSIS / 05</p><h1>多故障联合诊断实验室</h1><p className="subtitle">在统一复基带实验中区分 DC 偏移与频率偏移，并按顺序验证补偿</p></header><main className="container mf-container">
     <section className="mf-intro"><div><span className="mf-kicker">真实 BPSK 联合故障实验</span><h2>先观察，再拆解故障</h2><p>{challenge?.objective ?? '每轮随机生成无故障、单一故障或双重故障。所有参数在复盘前保持隐藏。'}</p><p className="mf-note">模型：r[n] = a[n]exp(j·2π·ε·n) + d + w[n]；d 为接收端 I 路幅度，ε 单位为 cycles/symbol，不换算 Hz。</p></div><button className="mf-primary" onClick={start} disabled={busy}>{challenge ? '创建新实验' : '创建实验挑战'}</button></section>
     {error && <div className="mf-error" role="alert">⚠️ {error}</div>}

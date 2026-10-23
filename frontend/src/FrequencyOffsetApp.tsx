@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import './FrequencyOffset.css'
+import { apiRequest, apiUrl } from './api'
 
 type Challenge = {
   challenge_id: string
@@ -25,17 +26,7 @@ type Feedback = {
   lesson: { model: string; estimator: string; compensation: string; conclusion: string; limitations: string }
 }
 
-const API = 'http://127.0.0.1:8000/api/stage04/challenges'
-
-async function request<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init)
-  const data = await response.json()
-  if (!response.ok) {
-    const detail = data.detail
-    throw new Error(typeof detail === 'string' ? detail : '请求失败，请重试')
-  }
-  return data as T
-}
+const API = apiUrl('/api/stage04/challenges')
 
 export default function FrequencyOffsetApp() {
   const [challenge, setChallenge] = useState<Challenge | null>(null)
@@ -56,20 +47,20 @@ export default function FrequencyOffsetApp() {
   }
 
   const start = () => action(async () => {
-    const next = await request<Challenge>(API, { method: 'POST' })
+    const next = await apiRequest<Challenge>(API, { method: 'POST' })
     setChallenge(next); setEstimate(null); setDiagnosisCorrect(false); setDiagnosisMessage('')
     setCompensation(null); setFeedback(null); setEpsilonInput('0')
   })
 
   const measure = () => challenge && action(async () => {
-    const measured = await request<Estimate>(`${API}/${challenge.challenge_id}/estimate`)
+    const measured = await apiRequest<Estimate>(`${API}/${challenge.challenge_id}/estimate`)
     setEstimate(measured)
     // Treat estimates inside the documented normal-state noise deadband as zero for compensation.
     setEpsilonInput(Math.abs(measured.epsilon_hat) <= measured.decision_deadband ? '0' : measured.epsilon_hat.toFixed(6))
   })
 
   const diagnose = () => challenge && action(async () => {
-    const result = await request<{ correct: boolean; message: string }>(`${API}/diagnosis`, {
+    const result = await apiRequest<{ correct: boolean; message: string }>(`${API}/diagnosis`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challenge_id: challenge.challenge_id, suspected_fault: suspectedFault }),
     })
@@ -81,12 +72,12 @@ export default function FrequencyOffsetApp() {
     if (!epsilonInput.trim() || !Number.isFinite(value) || Math.abs(value) >= 0.25) {
       throw new Error('请输入有限的归一化频偏，范围必须严格位于 -0.25 到 +0.25 cycles/symbol 之间。')
     }
-    const result = await request<Compensation>(`${API}/compensate`, {
+    const result = await apiRequest<Compensation>(`${API}/compensate`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ challenge_id: challenge.challenge_id, epsilon_hat: value }),
     })
     setCompensation(result)
-    setFeedback(await request<Feedback>(`${API}/${challenge.challenge_id}/feedback`))
+    setFeedback(await apiRequest<Feedback>(`${API}/${challenge.challenge_id}/feedback`))
   })
 
   return <div className="app">
@@ -96,7 +87,7 @@ export default function FrequencyOffsetApp() {
       <p className="subtitle">在复基带信号中识别相位旋转，并验证频偏补偿</p>
     </header>
     <main className="container frequency-container">
-      <section className="frequency-intro"><div><span className="frequency-kicker">真实 BPSK 复基带实验</span><h2>载波是否正在旋转？</h2><p>{challenge?.objective ?? '生成一轮随机正常对照或频偏实验。查看 I/Q 波形、星座和相位轨迹，估计归一化频偏后提交诊断。'}</p><p className="unit-note">ε = Δf·Tₛ，单位 cycles/symbol；未设置采样率或符号率，不换算 Hz。初始载波相位为 0。</p></div><button className="frequency-primary" onClick={start} disabled={busy}>{challenge ? '创建新实验' : '创建实验挑战'}</button></section>
+      <section className="frequency-intro"><div><span className="frequency-kicker">真实 BPSK 复基带实验</span><h2>载波是否正在旋转？</h2><p>{challenge?.objective ?? '生成一轮随机正常对照或频率偏移实验。查看 I/Q 波形、星座和相位轨迹，估计归一化频偏后提交诊断。频率偏移表示载波旋转速度发生变化。'}</p><p className="unit-note">ε = Δf·Tₛ，单位 cycles/symbol；未设置采样率或符号率，不换算 Hz。初始载波相位为 0。</p></div><button className="frequency-primary" onClick={start} disabled={busy}>{challenge ? '创建新实验' : '创建实验挑战'}</button></section>
       {error && <div className="frequency-error" role="alert">⚠️ {error}</div>}
       {!challenge && <section className="frequency-empty"><span>01 — CAPTURE</span><h2>等待实验创建</h2><p>每轮随机选择零频偏对照或正负频偏故障；实际偏移参数将在完成复盘后揭示。</p></section>}
       {challenge && <>
