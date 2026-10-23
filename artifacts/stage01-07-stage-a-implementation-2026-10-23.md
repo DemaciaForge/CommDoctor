@@ -69,7 +69,7 @@
 
 ## 7. GitHub 提交状态
 
-功能提交：`24a177e54ee81ec9a5d23a3862aca871200b56b9`（Improve core Stage01-07 experience）。Author 与 Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`，无 Claude 联合作者。功能提交仅含上述 13 个前端文件；本验收报告作为独立交付记录提交。推送状态：待正常推送后确认并记录。
+功能提交：`24a177e54ee81ec9a5d23a3862aca871200b56b9`（Improve core Stage01-07 experience）。Author 与 Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`，无 Claude 联合作者。功能提交仅含上述 13 个前端文件；验收报告独立提交为 `ff8d8530e97a249a2688313462a02b8b8a9f92d9`，行尾空白修订为 `29e4114a2ddb7f38cf6f6c48d58f55f517f25fe5`。`git push origin main` 已成功推送至指定仓库，随后 fetch 确认本地 HEAD 与 `origin/main` 同为 `29e4114a2ddb7f38cf6f6c48d58f55f517f25fe5`。
 
 ## 8. 服务和工作区收尾
 
