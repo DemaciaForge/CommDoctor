@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field, field_validator, ValidationError
+from pydantic import BaseModel, Field, StrictInt, field_validator, model_validator, ValidationError
 from bpsk_simulator import BPSKSimulator
 from frequency_offset import (
     MAX_UNAMBIGUOUS_OFFSET,
@@ -28,6 +28,18 @@ from multi_fault import (
 )
 from phase_offset import simulate_phase_offset, estimate_phase, compensate_phase, measure_ber
 from triple_fault import SCENARIOS as STAGE07_SCENARIOS, simulate_triple_fault, estimate_triple, compensate_triple
+from timing_sync import (
+    MAX_EB_N0_DB as STAGE08_MAX_EB_N0_DB,
+    MIN_EB_N0_DB as STAGE08_MIN_EB_N0_DB,
+    MAX_PAYLOAD_SYMBOLS as STAGE08_MAX_PAYLOAD_SYMBOLS,
+    MIN_PAYLOAD_SYMBOLS as STAGE08_MIN_PAYLOAD_SYMBOLS,
+    SAMPLES_PER_SYMBOL as STAGE08_SPS,
+    SPAN_SYMBOLS as STAGE08_SPAN,
+    ROLLOFF as STAGE08_ROLLOFF,
+    TIMING_PHASES as STAGE08_PHASES,
+    create_experiment as create_timing_experiment,
+    ber_for_phase as stage08_ber_for_phase,
+)
 from typing import Literal
 import math
 import json
@@ -91,6 +103,8 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage06/challenges/compensate",
         "/api/stage07/challenges/diagnosis",
         "/api/stage07/challenges/compensate",
+        "/api/stage08/challenges/diagnosis",
+        "/api/stage08/challenges/compensate",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -359,6 +373,43 @@ class Stage07CompensationRequest(BaseModel):
         return value
 
 
+class Stage08CreateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    mode: Literal["guided", "challenge"] = "challenge"
+    timing_offset_samples: StrictInt | None = None
+    eb_n0_db: float = Field(8.0, ge=STAGE08_MIN_EB_N0_DB, le=STAGE08_MAX_EB_N0_DB)
+    n_payload_symbols: StrictInt = Field(1024, ge=STAGE08_MIN_PAYLOAD_SYMBOLS, le=STAGE08_MAX_PAYLOAD_SYMBOLS)
+    seed: StrictInt | None = Field(None, ge=0, le=2**32 - 1)
+
+    @field_validator("eb_n0_db", mode="before")
+    @classmethod
+    def validate_stage08_snr(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("eb_n0_db must be a finite real number")
+        return value
+
+    @model_validator(mode="after")
+    def validate_stage08_mode(self):
+        if self.mode == "guided" and self.timing_offset_samples is None:
+            raise ValueError("guided mode requires timing_offset_samples")
+        if self.timing_offset_samples is not None and self.timing_offset_samples not in STAGE08_PHASES:
+            raise ValueError("timing_offset_samples must be from -7 through 7")
+        if self.mode == "challenge" and (self.timing_offset_samples is not None or self.seed is not None):
+            raise ValueError("challenge mode does not accept a timing offset or seed")
+        return self
+
+
+class Stage08DiagnosisRequest(BaseModel):
+    challenge_id: str
+    suspected_fault: Literal["timing_offset", "no_timing_offset"]
+
+
+class Stage08CompensationRequest(BaseModel):
+    challenge_id: str
+    compensation_samples: StrictInt = Field(..., ge=-7, le=7)
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -476,6 +527,7 @@ multi_fault_challenge_cache = {}
 MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE = 20
 stage06_challenge_cache = {}
 stage07_challenge_cache = {}
+stage08_challenge_cache = {}
 
 
 @app.post("/api/fault-diagnosis")
@@ -1105,6 +1157,116 @@ async def stage07_challenge_feedback(challenge_id:str):
     return {"status":"complete","actual_fault":truth,"diagnosis":challenge["diagnosis"],"measurement":m,"estimate_errors":errors,
             "before":challenge["before"],"compensation":challenge["compensation"],
             "lesson":{"model":"r[n]=a[n]exp(j(2πεn+φ))+d+w[n]。先注入相位和逐符号频率旋转，再叠加 I 路 DC，最后叠加复 AWGN。","order":"测量 DC 均值并校正，再从平方 BPSK 估计频偏并反旋，最后从校正信号估计恒定相位。各估计误差会向后传播。","limitations":"DC 均值受有限随机数据影响；频偏平方谱估计适用 |ε|<0.25 cycles/symbol；恒定相位存在 π 歧义，估计限制为 [-90°,90°)。低信噪比、短样本及残余 DC 会影响联合估计。BER 是同一批样本上的硬判决统计，可能变差。"}}
+
+
+@app.post("/api/stage08/challenges")
+async def create_stage08_challenge(request: Stage08CreateRequest):
+    offset = request.timing_offset_samples if request.mode == "guided" else secrets.choice(STAGE08_PHASES)
+    seed = request.seed if request.mode == "guided" and request.seed is not None else secrets.randbits(32)
+    try:
+        experiment = create_timing_experiment(seed=seed, timing_offset_samples=offset,
+            eb_n0_db=request.eb_n0_db, n_payload_symbols=request.n_payload_symbols)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage08 experiment: {exc}")
+    challenge_id = str(uuid.uuid4())
+    if len(stage08_challenge_cache) >= 20:
+        del stage08_challenge_cache[next(iter(stage08_challenge_cache))]
+    stage08_challenge_cache[challenge_id] = {**experiment, "mode": request.mode,
+        "measurement": None, "diagnosis": None, "compensations": []}
+    preview = experiment["preview"]
+    return {
+        "challenge_id": challenge_id, "status": "observe", "mode": request.mode,
+        "objective": "观察过采样波形，利用训练序列估计静态符号定时偏移，诊断后选择采样相位并比较 BER。",
+        "parameters": {"samples_per_symbol": STAGE08_SPS, "rolloff": STAGE08_ROLLOFF,
+            "span_symbols": STAGE08_SPAN, "timing_offset_unit": "samples; positive means delayed",
+            "symbol_time_unit": "Ts", "eb_n0_db": experiment["eb_n0_db"],
+            "n_payload_symbols": experiment["n_payload_symbols"], "pilot_symbols": 64,
+            "pilot_bits": experiment["pilot_bits"].astype(int).tolist()},
+        "waveform": {"sample_indices": preview["sample_indices"].astype(int).tolist(),
+            "time_symbols": preview["time_symbols"].astype(float).tolist(),
+            "transmit": preview["tx"].astype(float).tolist(),
+            "receive": experiment["rx_waveform"][preview["sample_indices"]].astype(float).tolist(),
+            "matched_filter": preview["matched"].astype(float).tolist(),
+            "group_delay_samples": experiment["group_delay_samples"],
+            "pilot_start_symbol": experiment["pilot_start_symbol"],
+            "payload_start_symbol": experiment["payload_start_symbol"]},
+    }
+
+
+@app.get("/api/stage08/challenges/{challenge_id}/measurement")
+async def measure_stage08_challenge(challenge_id: str):
+    challenge = stage08_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    measurement = challenge["initial_measurement"]
+    challenge["measurement"] = measurement
+    return {"status": "measured", "timing_offset_hat_samples": measurement["phase_samples"],
+        "timing_offset_hat_symbols": measurement["phase_samples"] / STAGE08_SPS,
+        "unit": "sample phases; 1 sample = Ts/16",
+        "method": "已知训练序列内部 48 个符号的匹配滤波输出均方误差有限网格搜索。",
+        "pilot_symbols_used": measurement["pilot_symbols_used"], "candidate_scores": measurement["scores"]}
+
+
+@app.post("/api/stage08/challenges/diagnosis")
+async def diagnose_stage08_challenge(request: Stage08DiagnosisRequest):
+    challenge = stage08_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["measurement"] is None:
+        raise HTTPException(status_code=409, detail="Measure the timing offset before submitting a diagnosis.")
+    actual_fault = challenge["timing_offset_samples"] != 0
+    correct = (request.suspected_fault == "timing_offset") == actual_fault
+    challenge["diagnosis"] = {"suspected_fault": request.suspected_fault, "correct": correct}
+    return {"correct": correct, "status": "compensate" if correct else "diagnose",
+        "message": "诊断正确。选择采样相位并观察同一接收数据上的 BER。" if correct else
+        "判断与测量证据不一致，请结合候选评分和波形重新判断。"}
+
+
+@app.post("/api/stage08/challenges/compensate")
+async def compensate_stage08_challenge(request: Stage08CompensationRequest):
+    challenge = stage08_challenge_cache.get(request.challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis"] is None or challenge["diagnosis"]["correct"] is not True:
+        raise HTTPException(status_code=409, detail="Submit a correct diagnosis before running timing compensation.")
+    before = challenge["initial_ber"]
+    try:
+        after = stage08_ber_for_phase(challenge["matched"], challenge["payload_bits"],
+            challenge["payload_start_symbol"], request.compensation_samples, challenge["group_delay_samples"])
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid compensation: {exc}")
+    result = {"before": before, "after": after, "improved": after["n_errors"] < before["n_errors"]}
+    challenge["compensations"].append(result)
+    return {"status": "compensated", **result}
+
+
+@app.get("/api/stage08/challenges/{challenge_id}/feedback")
+async def stage08_challenge_feedback(challenge_id: str):
+    challenge = stage08_challenge_cache.get(challenge_id)
+    if challenge is None:
+        raise HTTPException(status_code=404, detail="Challenge not found or expired. Start a new challenge.")
+    if challenge["diagnosis"] is None or challenge["diagnosis"]["correct"] is not True:
+        raise HTTPException(status_code=409, detail="Complete the diagnosis before viewing feedback.")
+    if not challenge["compensations"]:
+        raise HTTPException(status_code=409, detail="Run at least one compensation experiment before viewing feedback.")
+    last = challenge["compensations"][-1]
+    offset = challenge["timing_offset_samples"]
+    estimate = challenge["measurement"]["phase_samples"]
+    return {"status": "complete", "actual_fault": {"type": "timing_offset" if offset else "none",
+        "timing_offset_samples": offset, "timing_offset_symbols": offset / STAGE08_SPS},
+        "seed": challenge["seed"], "diagnosis": challenge["diagnosis"],
+        "measurement": {"estimate_samples": estimate, "error_samples": estimate - offset,
+            "candidate_scores": challenge["measurement"]["scores"]}, "compensation": last,
+        "effective_payload": {"n_compared": last["after"]["n_compared"],
+            "symbol_start": last["after"]["payload_symbol_start"],
+            "symbol_end_exclusive": last["after"]["payload_symbol_end_exclusive"]},
+        "lesson": {"model": "aₖ∈{-1,+1}; x[n]=Σₖaₖh[n-kS], r[n]=x[n-q]+w[n]。正 q 表示接收波形延迟 q 个样本。",
+            "estimator": "对已知 pilot 的 15 个候选采样相位计算 MSE，取本候选网格内最小值；这不是普遍最优同步器。",
+            "compensation": "只改变采样索引 D+kS+q_c；发送比特、噪声、接收数组和 payload 索引保持不变。",
+            "filtering": "Tx/Rx RRC 均为 129 taps，单级群延迟 64 samples，合计 128 samples。BER 不包含 pilot 或 guard，只比较固定 payload 区间。",
+            "conclusion": "本次采样相位补偿降低了误码数。" if last["improved"] else
+                "本次选择没有降低误码数；估计误差或当前采样相位可能仍不合适。BER 如实来自本轮固定数据。",
+            "limitations": "采样相位分辨率为 Ts/16；静态偏移范围为 -7 到 +7 samples。低 Eb/N0 下 pilot MSE 可能选错相位；本阶段不处理载波偏移、时钟漂移、多径或分数延迟。"}}
 
 
 if __name__ == "__main__":

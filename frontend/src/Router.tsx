@@ -6,6 +6,7 @@ import FrequencyOffsetApp from './FrequencyOffsetApp';
 import MultiFaultApp from './MultiFaultApp';
 import PhaseOffsetApp from './PhaseOffsetApp';
 import TripleFaultApp from './TripleFaultApp';
+import TimingSynchronizationApp from './TimingSynchronizationApp';
 import AppShell from './AppShell';
 
 /**
@@ -37,6 +38,7 @@ export default function Router() {
       {route === '/stage05' && <MultiFaultApp />}
       {route === '/stage06' && <PhaseOffsetApp />}
       {route === '/stage07' && <TripleFaultApp />}
+      {route === '/stage08' && <TimingSynchronizationApp />}
     </AppShell>
   );
 }

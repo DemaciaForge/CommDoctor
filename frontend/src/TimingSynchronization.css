@@ -1,0 +1,58 @@
+.timing-header { text-align: left; padding-left: max(1rem, calc((100vw - 1120px) / 2)); }
+.timing-header h1 { text-align: left; }
+.timing-eyebrow, .timing-kicker { color: var(--accent-muted); font-size: .76rem; font-weight: 700; letter-spacing: .12em; }
+.timing-container { max-width: 1200px; gap: 1.25rem; }
+.timing-intro, .timing-panel, .timing-empty { min-width: 0; padding: clamp(1rem, 2.5vw, 1.6rem); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.timing-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, .8fr); align-items: center; gap: 1.5rem; }
+.timing-intro h2, .timing-empty h2 { margin: .35rem 0; font-size: clamp(1.25rem, 2.4vw, 1.8rem); }
+.timing-intro p, .timing-panel > p, .timing-empty p, .timing-caption { color: var(--text-secondary); line-height: 1.65; }
+.timing-create-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; align-items: end; }
+.timing-create-controls label, .timing-phase-row label { display: grid; gap: .35rem; color: var(--text-secondary); font-size: .86rem; }
+.timing-create-controls input, .timing-create-controls select, .timing-phase-row input[type=number] { width: 100%; min-height: 42px; padding: .55rem .7rem; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; font: inherit; }
+.timing-create-controls small, .timing-phase-row small { color: var(--text-dim); font-size: .75rem; }
+.timing-primary, .timing-secondary { min-height: 44px; padding: .65rem 1rem; border: 1px solid transparent; border-radius: 7px; font: inherit; font-weight: 650; cursor: pointer; touch-action: manipulation; }
+.timing-primary { color: #041018; background: var(--accent); }
+.timing-secondary { color: var(--text-primary); background: var(--surface-3); border-color: var(--border); }
+.timing-primary:disabled, .timing-secondary:disabled { opacity: .55; cursor: wait; }
+.timing-primary:focus-visible, .timing-secondary:focus-visible, .timing-create-controls input:focus-visible, .timing-create-controls select:focus-visible, .timing-phase-row input:focus-visible, .timing-options input:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
+.timing-parameter-strip { display: flex; flex-wrap: wrap; gap: .55rem; }
+.timing-parameter-strip span, .timing-badge { display: inline-flex; align-items: center; min-height: 30px; padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); background: var(--surface-1); font-size: .78rem; }
+.timing-error { padding: .8rem 1rem; border: 1px solid var(--error); border-radius: 8px; color: #fecaca; background: #3a1119; overflow-wrap: anywhere; }
+.timing-empty { text-align: center; padding: 3rem 1.5rem; }
+.timing-empty > span { color: var(--accent-muted); font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
+.timing-panel { display: grid; gap: 1rem; }
+.timing-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; }
+.timing-panel-heading h2 { margin-top: .2rem; font-size: 1.3rem; }
+.timing-badge.complete { color: var(--accent-muted); border-color: #27634f; }
+.timing-metrics { margin: 0; }
+.timing-chart { width: 100%; min-width: 0; }
+.timing-caption { font-size: .83rem; }
+.timing-options { display: flex; flex-wrap: wrap; align-items: center; gap: .8rem; }
+.timing-options label { display: flex; align-items: center; gap: .5rem; min-height: 44px; padding: .45rem .7rem; border: 1px solid var(--border); border-radius: 7px; color: var(--text-secondary); }
+.timing-message { color: #fecaca; }
+.timing-message.good { color: var(--accent-muted); }
+.timing-phase-row { display: grid; grid-template-columns: auto minmax(120px, 1fr) 35px auto; align-items: center; gap: .8rem; }
+.timing-phase-row output { text-align: center; font: 700 1.1rem ui-monospace, monospace; }
+.timing-phase-row input[type=range] { width: 100%; accent-color: var(--accent); }
+.timing-lesson { max-width: 78ch; display: grid; gap: .45rem; color: var(--text-secondary); line-height: 1.7; }
+.timing-lesson h3 { margin-top: .65rem; color: var(--text-primary); font-size: 1rem; }
+.timing-lesson p { overflow-wrap: anywhere; }
+@media (min-width: 1100px) { .timing-panel:has(.timing-options), .timing-panel:has(.timing-phase-row) { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 767px) {
+  .timing-header { text-align: center; padding-left: 1rem; }
+  .timing-header h1 { text-align: center; }
+  .timing-intro { grid-template-columns: 1fr; }
+  .timing-panel-heading { align-items: flex-start; flex-direction: column; }
+  .timing-phase-row { grid-template-columns: 1fr auto; }
+  .timing-phase-row input[type=range] { grid-column: 1 / -1; grid-row: 2; }
+  .timing-phase-row .timing-primary { grid-column: 1 / -1; }
+  .timing-options { align-items: stretch; flex-direction: column; }
+  .timing-options .timing-secondary { width: 100%; }
+}
+@media (max-width: 390px) {
+  .timing-container { padding-inline: .7rem; }
+  .timing-create-controls { grid-template-columns: 1fr; }
+  .timing-parameter-strip { display: grid; grid-template-columns: 1fr 1fr; }
+  .timing-parameter-strip span { justify-content: center; text-align: center; }
+  .timing-panel, .timing-intro { padding: .9rem; }
+}
