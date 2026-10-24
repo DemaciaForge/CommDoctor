@@ -82,3 +82,11 @@
 ## 8. 服务清理与交付前状态
 
 本轮启动：前端 `127.0.0.1:5173`，后端 `127.0.0.1:8000`。报告写入后停止上述两个本轮启动的服务，并复核端口已释放。最终提交只包含本轮相关源码和本报告；既有未跟踪文件继续保留。
+
+## 9. GitHub 交付核验
+
+- 本轮功能提交 SHA：`970f829a26f8a571ec395f3e9d8493e5f1aaeb80`
+- 推送后 `origin/main`：`970f829a26f8a571ec395f3e9d8493e5f1aaeb80`，与本地 HEAD 一致。
+- Author：`DemaciaForge <DemaciaForge@users.noreply.github.com>`
+- Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`
+- 已检查提交内容，没有 `Claude`、`Anthropic` 或 `Co-authored-by` 署名。
