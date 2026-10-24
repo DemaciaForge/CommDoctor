@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import './App.css'
 import { apiRequest, apiUrl } from './api'
-import { ChartFrame, MetricGrid, formatBer } from './DataViz'
+import { ChartFrame, MetricGrid } from './DataViz'
+import { formatBer } from './dataVizUtils'
 
 interface SimulationResult {
   eb_n0_db: number

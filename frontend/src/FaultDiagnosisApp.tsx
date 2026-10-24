@@ -2,7 +2,8 @@ import { useState } from 'react'
 import './App.css'
 import './FaultDiagnosis.css'
 import { apiRequest, apiUrl } from './api'
-import { MetricGrid, formatBer } from './DataViz'
+import { ChartFrame, MetricGrid } from './DataViz'
+import { formatBer } from './dataVizUtils'
 
 interface DiagnosisResult {
   experiment_id: string
@@ -462,8 +463,15 @@ function SignalComparisonChart({ samples }: SignalComparisonChartProps) {
 
   return (
     <div className="chart-comparison">
-      <div className="chart-box">
-        <h4>正常接收信号</h4>
+      <ChartFrame
+        title="正常接收信号"
+        xLabel="样本序号（前 150 点）"
+        yLabel="接收幅度（归一化）"
+        legend={[
+          { label: '+1 符号接收值', color: '#6EE7B7' },
+          { label: '-1 符号接收值', color: '#E9A568' },
+        ]}
+      >
         <svg width="100%" height="250" viewBox="0 0 600 250">
           <line x1="0" y1="125" x2="600" y2="125" stroke="#333" strokeWidth="1" />
           <line x1="0" y1="62.5" x2="600" y2="62.5" stroke="#222" strokeWidth="0.5" strokeDasharray="2" />
@@ -485,10 +493,17 @@ function SignalComparisonChart({ samples }: SignalComparisonChartProps) {
             )
           })}
         </svg>
-      </div>
+      </ChartFrame>
 
-      <div className="chart-box">
-        <h4>故障注入后接收信号</h4>
+      <ChartFrame
+        title="故障注入后接收信号"
+        xLabel="样本序号（前 150 点）"
+        yLabel="接收幅度（归一化）"
+        legend={[
+          { label: '+1 符号接收值', color: '#6EE7B7' },
+          { label: '-1 符号接收值', color: '#E9A568' },
+        ]}
+      >
         <svg width="100%" height="250" viewBox="0 0 600 250">
           <line x1="0" y1="125" x2="600" y2="125" stroke="#333" strokeWidth="1" />
           <line x1="0" y1="62.5" x2="600" y2="62.5" stroke="#222" strokeWidth="0.5" strokeDasharray="2" />
@@ -510,14 +525,7 @@ function SignalComparisonChart({ samples }: SignalComparisonChartProps) {
             )
           })}
         </svg>
-      </div>
-
-      <div className="chart-axis-note">纵轴：接收幅度（归一化） · 横轴：样本序号（前 150 点）</div>
-
-      <div className="chart-legend">
-        <span><span className="legend-dot green"></span> +1符号接收值</span>
-        <span><span className="legend-dot orange"></span> -1符号接收值</span>
-      </div>
+      </ChartFrame>
     </div>
   )
 }

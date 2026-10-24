@@ -3,7 +3,8 @@ import './App.css'
 import './FaultDiagnosis.css'
 import './DiagnosticChallenge.css'
 import { apiRequest, apiUrl } from './api'
-import { ChartFrame, formatBer } from './DataViz'
+import { ChartFrame } from './DataViz'
+import { formatBer } from './dataVizUtils'
 
 type Challenge = {
   challenge_id: string

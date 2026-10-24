@@ -2,7 +2,8 @@ import { useState } from 'react'
 import './App.css'
 import './MultiFault.css'
 import { apiRequest, apiUrl } from './api'
-import { ChartFrame, formatBer } from './DataViz'
+import { ChartFrame } from './DataViz'
+import { formatBer } from './dataVizUtils'
 
 type Scenario = 'none' | 'dc_offset' | 'frequency_offset' | 'both'
 type Challenge = { challenge_id: string; objective: string; n_symbols: number; eb_n0_db: number; ber_theoretical: number; before: { ber: number; n_errors: number }; dc_unit: string; epsilon_unit: string; signal: { i: number[]; q: number[]; mean_i: number; mean_q: number; phase_rad: number[]; constellation: { i: number; q: number }[] } }

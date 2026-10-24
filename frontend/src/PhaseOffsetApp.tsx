@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import './PhaseOffset.css';
 import { apiRequest, apiUrl } from './api';
-import { ChartFrame, formatBer } from './DataViz';
+import { ChartFrame } from './DataViz'; import { formatBer } from './dataVizUtils';
 type Point={i:number;q:number}; type Challenge={challenge_id:string;n_symbols:number;eb_n0_db:number;before:{n_errors:number;ber:number};signal:{i:number[];q:number[];constellation:Point[]}};
 type Measure={phase_hat_deg:number;method:string}; type Result={before:{n_errors:number;ber:number};after:{n_errors:number;ber:number};constellation:Point[]};
 type Feedback={actual_fault:{scenario:string;phase_deg:number};diagnosis:{suspected_fault:string;correct:boolean};estimate_deg:number;estimate_error_deg:number;compensation:{compensation_deg:number};before:{n_errors:number;ber:number};after:{n_errors:number;ber:number};lesson:{model:string;principle:string;limits:string}};

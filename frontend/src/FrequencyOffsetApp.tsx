@@ -2,7 +2,8 @@ import { useState } from 'react'
 import './App.css'
 import './FrequencyOffset.css'
 import { apiRequest, apiUrl } from './api'
-import { ChartFrame, formatBer } from './DataViz'
+import { ChartFrame } from './DataViz'
+import { formatBer } from './dataVizUtils'
 
 type Challenge = {
   challenge_id: string
