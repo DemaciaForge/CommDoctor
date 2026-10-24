@@ -39,3 +39,5 @@ Stage08 MVP 的核心用户流程、数值对照、API 状态门控及桌面/平
 ## Git 发布
 
 实施前基线为 `main` / `origin/main`：`596faed2a234e096cae9459f015282b1155d2c42`。验收后将只暂存 Stage08 的 7 个生产/测试文件及本报告，保留先前未跟踪的 `.agents/`、`.codex/`、`AGENTS.md`、Stage01–07 报告及 Stage08 技术方案，不纳入提交。提交及推送结果在实施完成后补记。
+
+提交：4607aea（feat(stage08): add timing synchronization lab），作者/提交者 DemaciaForge <DemaciaForge@users.noreply.github.com>。
