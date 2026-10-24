@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import './App.css'
 import { apiRequest, apiUrl } from './api'
+import { ChartFrame, MetricGrid, formatBer } from './DataViz'
 
 interface SimulationResult {
   eb_n0_db: number
@@ -137,58 +138,26 @@ function App() {
             <section className="results">
               <h2>仿真结果</h2>
 
-              <div className="result-grid">
-                <div className="result-item">
-                  <span className="result-label">Eb/N0:</span>
-                  <span className="result-value">{result.eb_n0_db.toFixed(1)} dB</span>
-                </div>
-
-                <div className="result-item">
-                  <span className="result-label">仿真比特数:</span>
-                  <span className="result-value">{result.n_bits.toLocaleString()}</span>
-                </div>
-
-                <div className="result-item">
-                  <span className="result-label">错误比特数:</span>
-                  <span className="result-value">{result.n_errors}</span>
-                </div>
-
-                <div className="result-item highlight">
-                  <span className="result-label">理论BER:</span>
-                  <span className="result-value">{result.ber_theoretical.toExponential(4)}</span>
-                </div>
-
-                <div className="result-item highlight">
-                  <span className="result-label">实测BER:</span>
-                  <span className="result-value">
-                    {result.n_errors > 0
-                      ? result.ber_measured.toExponential(4)
-                      : '0 (无误码)'}
-                  </span>
-                </div>
-
-                {result.seed !== null && (
-                  <div className="result-item">
-                    <span className="result-label">随机种子:</span>
-                    <span className="result-value">{result.seed}</span>
-                  </div>
-                )}
-              </div>
+              <MetricGrid className="result-grid" items={[
+                { label: 'Eb/N₀', value: `${result.eb_n0_db.toFixed(1)} dB` },
+                { label: '仿真比特数', value: result.n_bits.toLocaleString() },
+                { label: '错误比特数', value: result.n_errors },
+                { label: '理论 BER', value: formatBer(result.ber_theoretical, 4), tone: 'accent', hint: '相干 BPSK/AWGN' },
+                { label: '实测 BER', value: formatBer(result.ber_measured, 4), tone: 'accent', hint: `${result.n_errors} errors / ${result.n_bits.toLocaleString()} bits` },
+                ...(result.seed !== null ? [{ label: '随机种子', value: result.seed }] : []),
+              ]} />
             </section>
 
             <section className="visualization">
               <h2>接收信号可视化</h2>
-              <SignalChart
-                rxSamples={result.rx_samples}
-                txSymbols={result.tx_symbols_samples}
-              />
+              <SignalChart rxSamples={result.rx_samples} txSymbols={result.tx_symbols_samples} />
             </section>
           </>
         )}
       </div>
 
       <footer className="footer">
-        <p>CommDoctor 阶段01 - BPSK通信原型 | AI辅助开发 (Claude Code)</p>
+        <p>CommDoctor · 阶段01 BPSK 通信仿真</p>
       </footer>
     </div>
   )
@@ -210,8 +179,12 @@ function SignalChart({ rxSamples, txSymbols }: SignalChartProps) {
   const range = maxVal - minVal
 
   return (
-    <div className="chart-container">
-      <svg width="100%" height="300" viewBox="0 0 800 300">
+    <ChartFrame title="接收样本与发送符号" xLabel="样本序号（前 200 点）" yLabel="幅度（归一化）" legend={[
+      { label: '+1 符号接收值', color: '#6EE7B7' },
+      { label: '−1 符号接收值', color: '#E9A568' },
+      { label: '发送符号', color: '#38BDF8' },
+    ]}>
+      <svg width="100%" height="300" viewBox="0 0 800 300" role="img" aria-label="接收样本与发送符号波形">
         {/* 背景网格 */}
         <line x1="0" y1="150" x2="800" y2="150" stroke="#333" strokeWidth="1" />
         <line x1="0" y1="75" x2="800" y2="75" stroke="#222" strokeWidth="0.5" strokeDasharray="4" />
@@ -256,12 +229,7 @@ function SignalChart({ rxSamples, txSymbols }: SignalChartProps) {
         <text x="5" y="295" fill="#888" fontSize="12">-{maxVal.toFixed(1)}</text>
       </svg>
 
-      <div className="chart-legend">
-        <span><span className="legend-dot" style={{backgroundColor: '#6EE7B7'}}></span> +1符号接收值</span>
-        <span><span className="legend-dot" style={{backgroundColor: '#E9A568'}}></span> -1符号接收值</span>
-        <span><span className="legend-dot" style={{backgroundColor: '#38BDF8'}}></span> 发送符号</span>
-      </div>
-    </div>
+    </ChartFrame>
   )
 }
 

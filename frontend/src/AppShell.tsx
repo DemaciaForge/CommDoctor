@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import './AppShell.css'
+import './DataViz.css'
 
 type Stage = { path: string; label: string; short: string }
 

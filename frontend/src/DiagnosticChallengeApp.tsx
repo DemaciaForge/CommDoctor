@@ -3,6 +3,7 @@ import './App.css'
 import './FaultDiagnosis.css'
 import './DiagnosticChallenge.css'
 import { apiRequest, apiUrl } from './api'
+import { ChartFrame, formatBer } from './DataViz'
 
 type Challenge = {
   challenge_id: string
@@ -117,7 +118,7 @@ function DiagnosticChallengeApp() {
           <section className="challenge-section">
             <div className="challenge-section-head"><div><span className="challenge-kicker">01 / OBSERVE</span><h2>观察通信实验</h2></div><span className="challenge-chip">Eb/N₀ {challenge.eb_n0_db} dB · {challenge.n_bits.toLocaleString()} bits</span></div>
             <div className="challenge-metrics">
-              <article><span>理论 BER</span><strong>{challenge.ber_theoretical.toExponential(2)}</strong></article>
+              <article><span>理论 BER</span><strong>{formatBer(challenge.ber_theoretical, 3)}</strong><em>相干 BPSK/AWGN</em></article>
               <article><span>基准误码</span><strong>{challenge.normal.n_errors} <small>/ {challenge.n_bits}</small></strong><em>无故障接收</em></article>
               <article><span>当前误码</span><strong>{challenge.with_fault.n_errors} <small>/ {challenge.n_bits}</small></strong><em>实验接收结果</em></article>
             </div>
@@ -154,14 +155,14 @@ function DiagnosticChallengeApp() {
             <div className="challenge-section-head"><div><span className="challenge-kicker">04 / REPAIR</span><h2>调整判决门限</h2></div><span className={`challenge-status ${repair?.improved ? 'is-done' : ''}`}>{repair ? (repair.improved ? 'BER 已改善' : '可继续尝试') : '修复实验'}</span></div>
             <p>滑动门限并运行同一批接收数据的重新判决。误码和 BER 由服务端计算。</p>
             <div className="challenge-threshold"><label htmlFor="challenge-threshold">判决门限 <strong>{threshold.toFixed(2)}</strong></label><input id="challenge-threshold" type="range" min="-1.5" max="1.5" step="0.01" value={threshold} onChange={e => setThreshold(Number(e.target.value))} /><button className="challenge-primary" onClick={runRepair} disabled={loading}>{loading ? '正在重新判决…' : repair ? '再次测试门限' : '运行修复实验'}</button></div>
-            {repair && <div className="challenge-metrics repair-metrics"><article><span>修复前 BER</span><strong>{repair.before.ber.toExponential(3)}</strong><em>{repair.before.n_errors} errors</em></article><article><span>当前门限 BER</span><strong>{repair.after.ber.toExponential(3)}</strong><em>{repair.after.n_errors} errors · T={repair.after.threshold.toFixed(2)}</em></article><article><span>本次结果</span><strong>{repair.improved ? '误码下降' : '未改善'}</strong><em>以实际误码数比较</em></article></div>}
+            {repair && <div className="challenge-metrics repair-metrics"><article><span>修复前 BER</span><strong>{formatBer(repair.before.ber)}</strong><em>{repair.before.n_errors} errors</em></article><article><span>当前门限 BER</span><strong>{formatBer(repair.after.ber)}</strong><em>{repair.after.n_errors} errors · T={repair.after.threshold.toFixed(2)}</em></article><article><span>本次结果</span><strong>{repair.improved ? '误码下降' : '未改善'}</strong><em>以实际误码数比较</em></article></div>}
           </section>}
 
           {feedback && <section className="challenge-section challenge-result">
             <div className="challenge-section-head"><div><span className="challenge-kicker">05 / LEARN</span><h2>挑战复盘</h2></div><span className="challenge-status is-done">实验完成</span></div>
             <div className="challenge-answer"><span>实际故障</span><strong>DC 偏移 {feedback.actual_fault.dc_offset > 0 ? '+' : ''}{feedback.actual_fault.dc_offset.toFixed(2)}</strong><span>你的诊断：正确</span></div>
             <div className="challenge-review"><h3>证据支持</h3><p>接收均值 {feedback.evidence.rx_mean.toFixed(4)}；标准误差 {feedback.evidence.std_error.toFixed(4)}；均值 3σ 界限 ±{feedback.evidence.threshold_3sigma.toFixed(4)}。本轮使用 {feedback.evidence.n_samples.toLocaleString()} 个样本，噪声标准差为 {feedback.noise_std.toFixed(4)}。</p></div>
-            <div className="challenge-metrics repair-metrics"><article><span>故障时 BER</span><strong>{feedback.repair.before.ber.toExponential(3)}</strong><em>{feedback.repair.before.n_errors} errors</em></article><article><span>你的修复 BER</span><strong>{feedback.repair.after.ber.toExponential(3)}</strong><em>{feedback.repair.after.n_errors} errors · T={feedback.repair.after.threshold.toFixed(2)}</em></article><article><span>测得均值门限参考</span><strong>{feedback.repair.ideal_threshold_result.ber.toExponential(3)}</strong><em>{feedback.repair.ideal_threshold_result.n_errors} errors · T={feedback.repair.ideal_threshold_result.threshold.toFixed(2)}</em></article></div>
+            <div className="challenge-metrics repair-metrics"><article><span>故障时 BER</span><strong>{formatBer(feedback.repair.before.ber)}</strong><em>{feedback.repair.before.n_errors} errors</em></article><article><span>你的修复 BER</span><strong>{formatBer(feedback.repair.after.ber)}</strong><em>{feedback.repair.after.n_errors} errors · T={feedback.repair.after.threshold.toFixed(2)}</em></article><article><span>测得均值门限参考</span><strong>{formatBer(feedback.repair.ideal_threshold_result.ber)}</strong><em>{feedback.repair.ideal_threshold_result.n_errors} errors · T={feedback.repair.ideal_threshold_result.threshold.toFixed(2)}</em></article></div>
             <div className="challenge-review"><h3>故障机理</h3><p>{feedback.explanation.fault_mechanism}</p><h3>修复原理</h3><p>{feedback.explanation.repair_mechanism}</p><h3>本次操作建议</h3><p>{feedback.explanation.coaching}</p></div>
           </section>}
         </>}
@@ -173,11 +174,11 @@ function DiagnosticChallengeApp() {
 function SignalPlot({ title, samples, symbols }: { title: string; samples: number[]; symbols: number[] }) {
   const count = Math.min(160, samples.length)
   const peak = Math.max(2.5, ...samples.slice(0, count).map(Math.abs))
-  return <div className="challenge-plot"><h3>{title}</h3><svg viewBox="0 0 600 190" role="img" aria-label={`${title}波形`}>
+  return <ChartFrame title={title} xLabel="样本序号（前 160 点）" yLabel="幅度（归一化）" legend={[{ label: '+1 符号', color: '#6EE7B7' }, { label: '−1 符号', color: '#E9A568' }]} className="challenge-plot"><svg viewBox="0 0 600 190" role="img" aria-label={`${title}波形`}>
     <line x1="0" y1="95" x2="600" y2="95" stroke="#374151" />
     <text x="6" y="15" fill="#9CA3AF" fontSize="11">+{peak.toFixed(1)}</text><text x="6" y="184" fill="#9CA3AF" fontSize="11">−{peak.toFixed(1)}</text>
     {samples.slice(0, count).map((value, i) => <circle key={i} cx={28 + (i / Math.max(count - 1, 1)) * 565} cy={95 - (value / peak) * 77} r="2.3" fill={symbols[i] > 0 ? '#6EE7B7' : '#E9A568'} opacity="0.82" />)}
-  </svg><div className="challenge-legend"><span>● +1 符号</span><span>● −1 符号</span></div></div>
+  </svg></ChartFrame>
 }
 
 export default DiagnosticChallengeApp

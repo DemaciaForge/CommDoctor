@@ -2,6 +2,7 @@ import { useState } from 'react'
 import './App.css'
 import './FaultDiagnosis.css'
 import { apiRequest, apiUrl } from './api'
+import { MetricGrid, formatBer } from './DataViz'
 
 interface DiagnosisResult {
   experiment_id: string
@@ -257,35 +258,12 @@ function FaultDiagnosisApp() {
             <section className="measurement-section">
               <h2>4. 主动测量与诊断</h2>
 
-              <div className="measurement-grid">
-                <div className="measurement-card">
-                  <div className="measurement-label">接收信号均值</div>
-                  <div className="measurement-value">
-                    {result.measurement.rx_mean.toFixed(4)}
-                  </div>
-                </div>
-
-                <div className="measurement-card">
-                  <div className="measurement-label">噪声标准差</div>
-                  <div className="measurement-value">
-                    {result.noise_std.toFixed(4)}
-                  </div>
-                </div>
-
-                <div className="measurement-card">
-                  <div className="measurement-label">3σ阈值</div>
-                  <div className="measurement-value">
-                    {result.diagnosis.evidence.threshold_3sigma.toFixed(4)}
-                  </div>
-                </div>
-
-                <div className="measurement-card">
-                  <div className="measurement-label">置信度</div>
-                  <div className="measurement-value">
-                    {result.diagnosis.confidence}
-                  </div>
-                </div>
-              </div>
+              <MetricGrid className="measurement-grid" items={[
+                { label: '接收信号均值', value: result.measurement.rx_mean.toFixed(4), hint: 'I 路幅度' },
+                { label: '噪声标准差', value: result.noise_std.toFixed(4), hint: 'σ' },
+                { label: '均值 3σ 界限', value: `±${result.diagnosis.evidence.threshold_3sigma.toFixed(4)}`, hint: `${result.diagnosis.evidence.n_samples.toLocaleString()} samples` },
+                { label: '置信度', value: result.diagnosis.confidence, tone: result.diagnosis.has_dc_offset ? 'warning' : 'good' },
+              ]} />
 
               <div className={`diagnosis-box ${result.diagnosis.has_dc_offset ? 'has-fault' : 'no-fault'}`}>
                 <div className="diagnosis-icon">
@@ -362,9 +340,7 @@ function FaultDiagnosisApp() {
                 <div className="ber-card baseline">
                   <div className="card-header">理论基准</div>
                   <div className="card-body">
-                    <div className="ber-value-large">
-                      {result.ber_theoretical.toExponential(3)}
-                    </div>
+                    <div className="ber-value-large">{formatBer(result.ber_theoretical)}</div>
                     <div className="ber-details">
                       <p>无故障BPSK/AWGN理论BER</p>
                     </div>
@@ -375,7 +351,7 @@ function FaultDiagnosisApp() {
                   <div className="card-header">正常无故障</div>
                   <div className="card-body">
                     <div className="ber-value-large">
-                      {result.normal.ber.toExponential(3)}
+                      {formatBer(result.normal.ber)}
                     </div>
                     <div className="ber-details">
                       <p>错误比特: {result.normal.n_errors}</p>
@@ -388,7 +364,7 @@ function FaultDiagnosisApp() {
                   <div className="card-header">故障注入后</div>
                   <div className="card-body">
                     <div className="ber-value-large">
-                      {result.with_fault.ber.toExponential(3)}
+                      {formatBer(result.with_fault.ber)}
                     </div>
                     <div className="ber-details">
                       <p>错误比特: {result.with_fault.n_errors}</p>
@@ -402,7 +378,7 @@ function FaultDiagnosisApp() {
                   <div className="card-header">自动修复后</div>
                   <div className="card-body">
                     <div className="ber-value-large">
-                      {result.repaired.ber.toExponential(3)}
+                      {formatBer(result.repaired.ber)}
                     </div>
                     <div className="ber-details">
                       <p>错误比特: {result.repaired.n_errors}</p>
@@ -423,7 +399,7 @@ function FaultDiagnosisApp() {
                     <div className="card-header">自定义门限修复</div>
                     <div className="card-body">
                       <div className="ber-value-large">
-                        {customResult.ber.toExponential(3)}
+                        {formatBer(customResult.ber)}
                       </div>
                       <div className="ber-details">
                         <p>错误比特: {customResult.n_errors}</p>
@@ -456,7 +432,7 @@ function FaultDiagnosisApp() {
       </div>
 
       <footer className="footer">
-        <p>CommDoctor 阶段02 - DC偏移故障诊断与修复 | AI辅助开发 (Claude Code)</p>
+        <p>CommDoctor · 阶段02 DC 偏移故障诊断与修复</p>
       </footer>
     </div>
   )
@@ -535,6 +511,8 @@ function SignalComparisonChart({ samples }: SignalComparisonChartProps) {
           })}
         </svg>
       </div>
+
+      <div className="chart-axis-note">纵轴：接收幅度（归一化） · 横轴：样本序号（前 150 点）</div>
 
       <div className="chart-legend">
         <span><span className="legend-dot green"></span> +1符号接收值</span>
