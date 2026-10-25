@@ -13,6 +13,7 @@ const stages: Stage[] = [
   { path: '/stage06', label: 'Stage06 载波相位', short: '06' },
   { path: '/stage07', label: 'Stage07 三故障', short: '07' },
   { path: '/stage08', label: 'Stage08 定时同步', short: '08' },
+  { path: '/stage09', label: 'Stage09 多径均衡', short: '09' },
 ]
 
 export default function AppShell({ route, children }: { route: string; children: ReactNode }) {

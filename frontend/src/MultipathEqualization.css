@@ -1,0 +1,55 @@
+.multipath-header { text-align: left; padding-left: max(1rem, calc((100vw - 1120px) / 2)); }
+.multipath-header h1 { text-align: left; }
+.multipath-eyebrow, .multipath-heading > div > span { color: var(--accent-muted); font-size: .76rem; font-weight: 700; letter-spacing: .12em; }
+.multipath-container { max-width: 1200px; gap: 1.25rem; }
+.multipath-intro, .multipath-panel, .multipath-empty { min-width: 0; padding: clamp(1rem, 2.5vw, 1.6rem); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.multipath-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .9fr); align-items: center; gap: 1.5rem; }
+.multipath-intro h2, .multipath-empty h2 { margin: .35rem 0; font-size: clamp(1.25rem, 2.4vw, 1.8rem); }
+.multipath-intro p, .multipath-panel > p, .multipath-empty p, .multipath-explain p, .multipath-lesson p, .multipath-measurement p { color: var(--text-secondary); line-height: 1.65; }
+.multipath-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; align-items: end; }
+.multipath-controls label { display: grid; gap: .35rem; color: var(--text-secondary); font-size: .86rem; }
+.multipath-controls input, .multipath-controls select { width: 100%; min-height: 42px; padding: .55rem .7rem; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; font: inherit; }
+.multipath-controls small { color: var(--text-dim); font-size: .75rem; }
+.multipath-primary, .multipath-secondary { min-height: 44px; padding: .65rem 1rem; border: 1px solid transparent; border-radius: 7px; font: inherit; font-weight: 650; cursor: pointer; touch-action: manipulation; }
+.multipath-primary { color: #041018; background: var(--accent); }
+.multipath-secondary { color: var(--text-primary); background: var(--surface-3); border-color: var(--border); }
+.multipath-primary:disabled, .multipath-secondary:disabled { opacity: .55; cursor: wait; }
+.multipath-primary:focus-visible, .multipath-secondary:focus-visible, .multipath-controls input:focus-visible, .multipath-controls select:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
+.multipath-strip { display: flex; flex-wrap: wrap; gap: .55rem; }
+.multipath-strip span, .multipath-badge { display: inline-flex; align-items: center; min-height: 30px; padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); background: var(--surface-1); font-size: .78rem; }
+.multipath-error { padding: .8rem 1rem; border: 1px solid var(--error); border-radius: 8px; color: #fecaca; background: #3a1119; overflow-wrap: anywhere; }
+.multipath-empty { text-align: center; padding: 3rem 1.5rem; }
+.multipath-panel { display: grid; gap: 1rem; }
+.multipath-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; min-width: 0; }
+.multipath-heading h2 { margin-top: .2rem; font-size: 1.3rem; }
+.multipath-badge.complete { color: var(--accent-muted); border-color: #27634f; }
+.multipath-chart { width: 100%; min-width: 0; }
+.multipath-observe-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(240px, .8fr); gap: 1rem; align-items: center; }
+.multipath-explain { padding: 1rem; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-1); }
+.multipath-explain h3, .multipath-lesson h3 { color: var(--text-primary); font-size: 1rem; }
+.multipath-copy { max-width: 78ch; }
+.multipath-equalizer-actions { display: flex; flex-wrap: wrap; gap: .75rem; }
+.multipath-results { overflow-x: auto; border: 1px solid var(--border); border-radius: 9px; }
+.multipath-result-row { display: grid; grid-template-columns: minmax(70px, .7fr) minmax(120px, 1fr) minmax(80px, .7fr) minmax(110px, 1fr); gap: .7rem; min-width: 460px; padding: .75rem .9rem; border-bottom: 1px solid var(--border); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.multipath-result-row:last-child { border-bottom: 0; }
+.multipath-result-row strong { color: var(--text-primary); }
+.multipath-result-head { color: var(--text-dim); font-size: .8rem; }
+.multipath-lesson { max-width: 78ch; display: grid; gap: .45rem; line-height: 1.7; }
+.multipath-measurement { display: grid; gap: .75rem; }
+@media (max-width: 767px) {
+  .multipath-header { text-align: center; padding-left: 1rem; }
+  .multipath-header h1 { text-align: center; }
+  .multipath-intro { grid-template-columns: 1fr; }
+  .multipath-heading { align-items: flex-start; flex-direction: column; }
+  .multipath-observe-grid { grid-template-columns: 1fr; }
+  .multipath-equalizer-actions { flex-direction: column; }
+  .multipath-equalizer-actions button { width: 100%; }
+}
+@media (max-width: 390px) {
+  .multipath-container { padding-inline: .7rem; }
+  .multipath-controls { grid-template-columns: 1fr; }
+  .multipath-strip { display: grid; grid-template-columns: 1fr 1fr; }
+  .multipath-strip span { justify-content: center; text-align: center; }
+  .multipath-panel, .multipath-intro { padding: .9rem; }
+}
+@media (prefers-reduced-motion: reduce) { .multipath-primary, .multipath-secondary { transition: none; } }

@@ -40,6 +40,18 @@ from timing_sync import (
     create_experiment as create_timing_experiment,
     ber_for_phase as stage08_ber_for_phase,
 )
+from multipath_equalization import (
+    MAX_DELAY_SYMBOLS as STAGE09_MAX_DELAY_SYMBOLS,
+    MAX_EB_N0_DB as STAGE09_MAX_EB_N0_DB,
+    MAX_PAYLOAD_SYMBOLS as STAGE09_MAX_PAYLOAD_SYMBOLS,
+    MIN_EB_N0_DB as STAGE09_MIN_EB_N0_DB,
+    MIN_PAYLOAD_SYMBOLS as STAGE09_MIN_PAYLOAD_SYMBOLS,
+    PILOT_SYMBOLS as STAGE09_PILOT_SYMBOLS,
+    SAMPLES_PER_SYMBOL as STAGE09_SPS,
+    create_experiment as create_multipath_experiment,
+    equalize as equalize_multipath,
+    estimate_channel as estimate_multipath_channel,
+)
 from typing import Literal
 import math
 import json
@@ -105,6 +117,7 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage07/challenges/compensate",
         "/api/stage08/challenges/diagnosis",
         "/api/stage08/challenges/compensate",
+        "/api/stage09/experiments",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -410,6 +423,44 @@ class Stage08CompensationRequest(BaseModel):
     compensation_samples: StrictInt = Field(..., ge=-7, le=7)
 
 
+class Stage09CreateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    mode: Literal["guided", "challenge"] = "guided"
+    eb_n0_db: float = Field(8.0, ge=STAGE09_MIN_EB_N0_DB, le=STAGE09_MAX_EB_N0_DB)
+    n_payload_symbols: StrictInt = Field(512, ge=STAGE09_MIN_PAYLOAD_SYMBOLS, le=STAGE09_MAX_PAYLOAD_SYMBOLS)
+    seed: StrictInt | None = Field(None, ge=0, le=2**32 - 1)
+    path_delays_samples: list[StrictInt] | None = None
+    path_gains: list[float] | None = None
+
+    @field_validator("eb_n0_db", mode="before")
+    @classmethod
+    def validate_stage09_snr(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("eb_n0_db must be a finite real number")
+        return value
+
+    @field_validator("path_gains", mode="before")
+    @classmethod
+    def validate_stage09_gains(cls, value):
+        if value is None:
+            return value
+        if not isinstance(value, list) or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in value):
+            raise ValueError("path_gains must contain finite real numbers")
+        return value
+
+    @model_validator(mode="after")
+    def validate_stage09_mode(self):
+        if self.mode == "challenge" and (self.seed is not None or self.path_delays_samples is not None or self.path_gains is not None):
+            raise ValueError("challenge mode does not accept seed or true channel parameters")
+        return self
+
+
+class Stage09EqualizeRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    algorithm: Literal["zf", "mmse"]
+
+
 class SimulationResponse(BaseModel):
     """仿真响应数据"""
     eb_n0_db: float
@@ -528,6 +579,7 @@ MAX_MULTI_FAULT_CHALLENGE_CACHE_SIZE = 20
 stage06_challenge_cache = {}
 stage07_challenge_cache = {}
 stage08_challenge_cache = {}
+stage09_experiment_cache = {}
 
 
 @app.post("/api/fault-diagnosis")
@@ -1267,6 +1319,100 @@ async def stage08_challenge_feedback(challenge_id: str):
             "conclusion": "本次采样相位补偿降低了误码数。" if last["improved"] else
                 "本次选择没有降低误码数；估计误差或当前采样相位可能仍不合适。BER 如实来自本轮固定数据。",
             "limitations": "采样相位分辨率为 Ts/16；静态偏移范围为 -7 到 +7 samples。低 Eb/N0 下 pilot MSE 可能选错相位；本阶段不处理载波偏移、时钟漂移、多径或分数延迟。"}}
+
+
+@app.post("/api/stage09/experiments")
+async def create_stage09_experiment(request: Stage09CreateRequest):
+    seed = request.seed if request.mode == "guided" and request.seed is not None else secrets.randbelow(2**32)
+    delays = request.path_delays_samples if request.mode == "guided" and request.path_delays_samples is not None else [0, STAGE09_SPS]
+    gains = request.path_gains if request.mode == "guided" and request.path_gains is not None else [1.0, 0.7]
+    try:
+        experiment = create_multipath_experiment(seed=seed, eb_n0_db=request.eb_n0_db,
+            n_payload_symbols=request.n_payload_symbols, path_delays_samples=delays, path_gains=gains)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage09 experiment: {exc}")
+    experiment_id = str(uuid.uuid4())
+    if len(stage09_experiment_cache) >= 20:
+        del stage09_experiment_cache[next(iter(stage09_experiment_cache))]
+    stage09_experiment_cache[experiment_id] = {**experiment, "mode": request.mode, "status": "created"}
+    layout = experiment["layout"]
+    preview_indices = experiment["preview_indices"]
+    matched_indices = np.minimum(preview_indices + layout.group_delay_samples, len(experiment["matched"]) - 1)
+    response = {
+        "experiment_id": experiment_id, "status": "created", "mode": request.mode,
+        "objective": "观察两径传播如何把相邻 BPSK 符号叠加到接收采样，再用训练序列拟合短窗均衡器。",
+        "parameters": {"samples_per_symbol": STAGE09_SPS, "rolloff": 0.35, "span_symbols": 8,
+            "eb_n0_db": experiment["eb_n0_db"], "n_payload_symbols": experiment["n_payload_symbols"],
+            "pilot_symbols": STAGE09_PILOT_SYMBOLS, "equalizer_taps": 5, "path_count": len(experiment["path_gains"])},
+        "channel": {"impulse": experiment["channel_impulse"].tolist()} if request.mode == "guided" else {"path_count": len(experiment["path_gains"])},
+        "layout": {"pilot_start_symbol": layout.pilot_start_symbol, "pilot_length": layout.pilot_length,
+            "payload_start_symbol": layout.payload_start_symbol, "payload_end_symbol_exclusive": layout.payload_start_symbol + layout.payload_length,
+            "group_delay_samples": layout.group_delay_samples, "tx_filter_delay_samples": layout.tx_filter_delay,
+            "rx_filter_delay_samples": layout.rx_filter_delay, "channel_reference_delay_samples": layout.channel_reference_delay,
+            "payload_sample_indices": [int(v) for v in layout.payload_sample_indices]},
+        "raw_ber": experiment["raw_ber"],
+        "waveform": {"sample_indices": [int(v) for v in preview_indices],
+            "transmit": experiment["tx_waveform"][preview_indices].tolist(),
+            "receive": experiment["rx_waveform"][preview_indices].tolist(),
+            "matched_filter": experiment["matched"][matched_indices].tolist()},
+        "pilot": {"length": STAGE09_PILOT_SYMBOLS, "bits": experiment["pilot_bits"].tolist()},
+    }
+    if request.mode == "guided":
+        response["seed"] = seed
+        response["parameters"].update({"path_delays_samples": [int(v) for v in experiment["path_delays_samples"]],
+            "path_gains": [float(v) for v in experiment["path_gains"]], "noise_variance": experiment["noise_variance"]})
+    stage09_experiment_cache[experiment_id]["response"] = response
+    return response
+
+
+def _stage09_get(experiment_id: str) -> dict:
+    experiment = stage09_experiment_cache.get(experiment_id)
+    if experiment is None:
+        raise HTTPException(status_code=404, detail="Experiment not found or expired. Start a new experiment.")
+    return experiment
+
+
+@app.get("/api/stage09/experiments/{experiment_id}/estimate")
+async def estimate_stage09_experiment(experiment_id: str):
+    experiment = _stage09_get(experiment_id)
+    try:
+        result = estimate_multipath_channel(experiment)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid measurement: {exc}")
+    experiment["status"] = "estimated"
+    return result
+
+
+@app.post("/api/stage09/experiments/{experiment_id}/equalize")
+async def equalize_stage09_experiment(experiment_id: str, request: Stage09EqualizeRequest):
+    experiment = _stage09_get(experiment_id)
+    try:
+        result = equalize_multipath(experiment, request.algorithm)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid equalization: {exc}")
+    experiment["status"] = "equalized"
+    return {"status": "equalized", **result, "raw": experiment["raw_ber"]}
+
+
+@app.get("/api/stage09/experiments/{experiment_id}/feedback")
+async def stage09_experiment_feedback(experiment_id: str):
+    experiment = _stage09_get(experiment_id)
+    if not experiment.get("equalizations"):
+        raise HTTPException(status_code=409, detail="Run at least one equalizer before viewing the review.")
+    layout = experiment["layout"]
+    results = experiment["equalizations"]
+    best = min((result["n_errors"], name) for name, result in results.items())[1]
+    raw_errors = experiment["raw_ber"]["n_errors"]
+    best_result = results[best]
+    return {"status": "complete", "results": results, "raw": experiment["raw_ber"],
+        "effective_payload": {"n_compared": layout.payload_length, "symbol_start": layout.payload_start_symbol,
+            "symbol_end_exclusive": layout.payload_start_symbol + layout.payload_length,
+            "sample_indices": [int(v) for v in layout.payload_sample_indices]},
+        "lesson": {"model": "发射信号 x[n]=Σ aₖh[n−kS]，多径接收 r[n]=Σ cₗx[n−dₗ]+w[n]。延迟回波把较早符号的能量带到当前符号时刻，造成 ISI。",
+            "equalizer": "5 抽头对称符号窗以 64 个已知 pilot 建立回归；ZF 解 XᵀXw=Xᵀt，MMSE 解 (XᵀX+λI)w=Xᵀt，λ=噪声方差。两者只用 pilot 拟合。",
+            "tradeoff": "ZF 追求抵消估计到的符号间干扰，但病态信道可能放大噪声。MMSE 加正则项，在残余 ISI 与噪声放大之间折中。",
+            "conclusion": f"本次 {best.upper()} 的误码为 {best_result['n_errors']}/{best_result['n_compared']}，原始判决为 {raw_errors}/{experiment['raw_ber']['n_compared']}。结果来自同一接收数组和固定 payload 索引；均衡不保证每次都改善 BER。",
+            "limitations": "静态实数 BPSK、整数符号延迟（16 samples 的倍数）、固定 RRC 与短窗线性均衡器；不包含分数延迟、时变信道、载波偏移或编码。单进程内存缓存最多保留 20 个实验。"}}
 
 
 if __name__ == "__main__":
