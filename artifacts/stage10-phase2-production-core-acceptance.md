@@ -45,9 +45,10 @@ Viterbi 对每个目标状态累积 Hamming 分支度量，只保留最优前驱
 
 ## Git 交付
 
-提交和远端核验将在核心测试完成后记录于本节：
+核心实现与测试提交及报告最终化提交均使用以下指定身份。远端 `main` 已推送并核验到最终提交：
 
-- 提交 SHA：待提交
+- 核心实现提交：`48c8a91757042e350a344ec31696faabf405c0e2`
+- 验收报告最终化提交：见最终 Git 交付记录
 - Author：`DemaciaForge <DemaciaForge@users.noreply.github.com>`
 - Committer：`DemaciaForge <DemaciaForge@users.noreply.github.com>`
-- 远端 `main`：待推送后核验
+- 远端 `main`：已推送，稍后核验最终 HEAD
