@@ -51,4 +51,4 @@
 
 ## Git 发布记录
 
-功能提交：`a3cbb797f88912828044423bb15f81cf3d07922b`，作者和 committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。本报告随后作为独立文档提交；当前最终本地 `HEAD`、`origin/main` 和 `git ls-remote origin refs/heads/main` 均为 `a124663990400ed779667e5eb63a4b6fc78b462a`。工作区原有 `.agents/`、`.codex/`、`AGENTS.md` 及旧报告保持未跟踪，不纳入提交。
+功能提交：`a3cbb797f88912828044423bb15f81cf3d07922b`，作者和 committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。验收报告随后以 doc-only 提交发布；发布前已用 `git rev-parse HEAD`、`git rev-parse origin/main` 和 `git ls-remote origin refs/heads/main` 核对本地与远端一致。工作区原有 `.agents/`、`.codex/`、`AGENTS.md` 及旧报告保持未跟踪，不纳入提交。
