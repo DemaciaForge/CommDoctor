@@ -1,7 +1,7 @@
 # CommDoctor Stage10 Phase 3 API 与前端验收报告
 
-日期：2026-10-25（Asia/Shanghai）  
-仓库：`D:\CommDoctor\projects\CommDoctor-main`  
+日期：2026-10-25（Asia/Shanghai）
+仓库：`D:\CommDoctor\projects\CommDoctor-main`
 分支：`main`
 
 ## 范围与开始状态
