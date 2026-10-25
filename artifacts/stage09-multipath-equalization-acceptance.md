@@ -51,4 +51,4 @@
 
 ## Git 发布记录
 
-提交和推送前仅计划暂存本轮 Stage09 文件；工作区原有 `.agents/`、`.codex/`、`AGENTS.md` 及旧报告保持未跟踪，不纳入提交。
+功能提交：`a3cbb797f88912828044423bb15f81cf3d07922b`，作者和 committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。本报告随后作为独立文档提交；最终本地 `HEAD` 与 `origin/main` 均为报告提交 SHA，且 `git ls-remote origin refs/heads/main` 已核对一致。工作区原有 `.agents/`、`.codex/`、`AGENTS.md` 及旧报告保持未跟踪，不纳入提交。
