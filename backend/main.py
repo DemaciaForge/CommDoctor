@@ -52,18 +52,21 @@ from multipath_equalization import (
     equalize as equalize_multipath,
     estimate_channel as estimate_multipath_channel,
 )
+from convolutional_coding import run_experiment as run_stage10_experiment
 from typing import Literal
 import math
 import json
 import numpy as np
 import secrets
 import uuid
+import logging
 
 app = FastAPI(
     title="CommDoctor API",
     description="数字通信故障诊断教学平台 - BPSK仿真接口",
     version="0.1.0"
 )
+logger = logging.getLogger(__name__)
 
 # F03修复: 添加请求体验证中间件，递归检查非有限数值
 def _check_for_nonfinite(obj, path="body"):
@@ -118,6 +121,7 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage08/challenges/diagnosis",
         "/api/stage08/challenges/compensate",
         "/api/stage09/experiments",
+        "/api/stage10/experiments",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -459,6 +463,36 @@ class Stage09CreateRequest(BaseModel):
 class Stage09EqualizeRequest(BaseModel):
     model_config = {"extra": "forbid"}
     algorithm: Literal["zf", "mmse"]
+
+
+class Stage10CreateRequest(BaseModel):
+    """Bounded request for one deterministic Stage10 coding experiment."""
+    model_config = {"extra": "forbid"}
+
+    n_information_bits: StrictInt = Field(256, ge=1, le=4096)
+    eb_n0_db: float = Field(4.0, ge=-10.0, le=30.0)
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+    include_details: bool = False
+
+    @field_validator("eb_n0_db", mode="before")
+    @classmethod
+    def validate_stage10_snr(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("eb_n0_db must be a finite real number")
+        return value
+
+    @field_validator("include_details", mode="before")
+    @classmethod
+    def validate_stage10_details_flag(cls, value):
+        if not isinstance(value, bool):
+            raise ValueError("include_details must be a boolean")
+        return value
+
+    @model_validator(mode="after")
+    def validate_detail_limit(self):
+        if self.include_details and self.n_information_bits > 256:
+            raise ValueError("include_details is limited to 256 information bits; disable details for larger experiments")
+        return self
 
 
 class SimulationResponse(BaseModel):
@@ -1413,6 +1447,109 @@ async def stage09_experiment_feedback(experiment_id: str):
             "tradeoff": "ZF 追求抵消估计到的符号间干扰，但病态信道可能放大噪声。MMSE 加正则项，在残余 ISI 与噪声放大之间折中。",
             "conclusion": f"本次 {best.upper()} 的误码为 {best_result['n_errors']}/{best_result['n_compared']}，原始判决为 {raw_errors}/{experiment['raw_ber']['n_compared']}。结果来自同一接收数组和固定 payload 索引；均衡不保证每次都改善 BER。",
             "limitations": "静态实数 BPSK、整数符号延迟（16 samples 的倍数）、固定 RRC 与短窗线性均衡器；不包含分数延迟、时变信道、载波偏移或编码。单进程内存缓存最多保留 20 个实验。"}}
+
+
+@app.post("/api/stage10/experiments")
+async def create_stage10_experiment(request: Stage10CreateRequest):
+    """Run a complete, stateless Stage10 experiment through the production core."""
+    try:
+        result = run_stage10_experiment(
+            n_information_bits=request.n_information_bits,
+            eb_n0_db=request.eb_n0_db,
+            seed=request.seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage10 experiment: {exc}") from exc
+    except Exception as exc:  # keep implementation details in server logs only
+        logger.exception("Stage10 experiment failed")
+        raise HTTPException(status_code=500, detail="Stage10 experiment could not be completed. Please retry.") from exc
+
+    full = result.to_dict()
+    n = result.information_bit_count
+    window = n if request.include_details else min(n, 64)
+    # A truncated payload preview stops before the next payload bit; only a
+    # complete frame preview includes the two encoded termination inputs.
+    coded_window = min(result.encoded_bit_count, 2 * window + (2 * result.tail_bit_count if window == n else 0))
+    if result.uncoded_errors < result.decoded_information_errors:
+        comparison = "本次固定样本中，未编码信息误码较少；卷积编码不保证每次实验都改善结果。"
+    elif result.uncoded_errors > result.decoded_information_errors:
+        comparison = "本次固定样本中，译码后的信息误码较少；单次实验不能证明普遍性能优势。"
+    else:
+        comparison = "本次固定样本中，两条链路的信息误码数相同；噪声和有限帧长会影响单次结果。"
+
+    return {
+        "parameters": {
+            "n_information_bits": n,
+            "eb_n0_db": result.eb_n0_db,
+            "seed": result.random_seed,
+            "include_details": request.include_details,
+        },
+        "code": {
+            "constraint_length": 3,
+            "generators_octal": [7, 5],
+            "output_order": ["g0", "g1"],
+            "rate": result.code_rate,
+            "termination": "two_zero_tail_bits",
+            "decoder": "terminated_hard_decision_viterbi",
+        },
+        "energy": {
+            "eb_info": result.eb_info,
+            "eb_n0_db": result.eb_n0_db,
+            "noise_variance": result.noise_variance,
+            "noise_std": result.noise_std,
+            "uncoded_symbol_energy": result.eb_info,
+            "coded_symbol_energy": result.code_rate * result.eb_info,
+        },
+        "lengths": {
+            "information_bits": n,
+            "tail_bits": result.tail_bit_count,
+            "encoded_bits": result.encoded_bit_count,
+            "encoded_symbols": result.encoded_symbol_count,
+            "decoded_information_bits": result.decoded_information_length,
+            "effective_frame_rate": n / result.encoded_symbol_count,
+        },
+        "results": {
+            "uncoded_information": {
+                "errors": result.uncoded_errors,
+                "compared": n,
+                "ber": result.uncoded_ber,
+            },
+            "coded_channel": {
+                "errors": result.coded_channel_errors,
+                "compared": result.encoded_bit_count,
+                "ber": result.coded_channel_ber,
+                "includes_tail": True,
+            },
+            "decoded_information": {
+                "errors": result.decoded_information_errors,
+                "compared": n,
+                "ber": result.decoded_information_ber,
+                "correctly_recovered": result.decoded_information_errors == 0,
+                "decoded_tail_bits": list(result.decoded_tail_bits),
+                "tail_counted": False,
+            },
+        },
+        "details": {
+            "included": request.include_details,
+            "window_information_bits": window,
+            "window_encoded_bits": coded_window,
+            "truncated": window < n,
+            "information_bits": list(full["information_bits"][:window]),
+            "encoded_bits": list(full["encoded_bits"][:coded_window]),
+            "uncoded_received": list(full["uncoded_received"][:window]),
+            "uncoded_hard_decisions": list(full["uncoded_hard_decisions"][:window]),
+            "coded_received": list(full["coded_received"][:coded_window]),
+            "coded_hard_decisions": list(full["coded_hard_decisions"][:coded_window]),
+            "decoded_information_bits": list(full["decoded_information_bits"][:window]),
+        },
+        "teaching": {
+            "encoding": "每个信息位经 K=3、(7,5) 卷积编码生成两个码位；末尾两个零尾位用于回到零状态。",
+            "channel": "BPSK 符号经过实值 AWGN；编码与未编码链路按相同信息位 Eb/N0 和能量预算比较。",
+            "decoding": "硬判决把接收样本映射为 0/1；Viterbi 在四状态 trellis 上累积 Hamming 路径度量并选择终止于零状态的最优路径。",
+            "comparison": comparison,
+            "limitation": "BER 来自本次固定的有限样本。零误码表示本帧未观察到错误，不代表总体误码率永远为零。",
+        },
+    }
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ import PhaseOffsetApp from './PhaseOffsetApp';
 import TripleFaultApp from './TripleFaultApp';
 import TimingSynchronizationApp from './TimingSynchronizationApp';
 import MultipathEqualizationApp from './MultipathEqualizationApp';
+import Stage10CodingApp from './Stage10CodingApp';
 import AppShell from './AppShell';
 
 /**
@@ -41,6 +42,7 @@ export default function Router() {
       {route === '/stage07' && <TripleFaultApp />}
       {route === '/stage08' && <TimingSynchronizationApp />}
       {route === '/stage09' && <MultipathEqualizationApp />}
+      {route === '/stage10' && <Stage10CodingApp />}
     </AppShell>
   );
 }

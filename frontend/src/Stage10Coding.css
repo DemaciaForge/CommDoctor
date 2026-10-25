@@ -1,0 +1,45 @@
+.stage10-header { text-align: left; padding-left: max(1rem, calc((100vw - 1120px) / 2)); }
+.stage10-header h1 { text-align: left; }
+.stage10-eyebrow, .stage10-kicker { color: var(--accent-muted); font-size: .76rem; font-weight: 700; letter-spacing: .12em; }
+.stage10-container { max-width: 1200px; gap: 1.25rem; }
+.stage10-intro, .stage10-panel, .stage10-empty { min-width: 0; padding: clamp(1rem, 2.5vw, 1.6rem); border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); }
+.stage10-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, .8fr); align-items: center; gap: 1.5rem; }
+.stage10-intro h2, .stage10-empty h2 { margin: .35rem 0; font-size: clamp(1.25rem, 2.4vw, 1.8rem); }
+.stage10-intro p, .stage10-empty p, .stage10-note { color: var(--text-secondary); line-height: 1.65; }
+.stage10-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem .8rem; align-items: center; }
+.stage10-controls > label:not(.stage10-detail-toggle) { color: var(--text-secondary); font-size: .88rem; }
+.stage10-controls small { display: block; color: var(--text-dim); font-size: .75rem; }
+.stage10-controls input[type=number] { width: 100%; min-height: 44px; padding: .55rem .7rem; color: var(--text-primary); background: var(--surface-1); border: 1px solid var(--border); border-radius: 7px; font: inherit; }
+.stage10-detail-toggle { display: flex; align-items: center; gap: .45rem; color: var(--text-secondary); font-size: .85rem; }
+.stage10-detail-toggle input { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+.stage10-primary { grid-column: 1 / -1; min-height: 46px; padding: .65rem 1rem; border: 1px solid transparent; border-radius: 7px; color: #041018; background: var(--accent); font: inherit; font-weight: 700; cursor: pointer; touch-action: manipulation; }
+.stage10-primary:disabled { opacity: .6; cursor: wait; }
+.stage10-primary:focus-visible, .stage10-controls input:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
+.stage10-strip { display: flex; flex-wrap: wrap; gap: .55rem; }
+.stage10-strip span, .stage10-badge { display: inline-flex; align-items: center; min-height: 30px; padding: .3rem .65rem; border: 1px solid var(--border); border-radius: 999px; color: var(--text-secondary); font-size: .78rem; }
+.stage10-error { padding: .9rem 1rem; border: 1px solid #7f3535; border-radius: 8px; color: #fecaca; background: #2a1216; }
+.stage10-panel { display: grid; gap: .85rem; }
+.stage10-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.stage10-heading h2 { margin: .25rem 0 0; font-size: clamp(1.2rem, 2.4vw, 1.55rem); }
+.stage10-chart { width: 100%; }
+.stage10-bits { display: grid; gap: .45rem; min-width: 0; }
+.stage10-bit-row { display: grid; grid-template-columns: minmax(125px, .28fr) minmax(0, 1fr); align-items: start; gap: .7rem; padding: .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+.stage10-bit-row strong { color: var(--text-secondary); font-size: .84rem; }
+.stage10-bit-row code { overflow-wrap: anywhere; color: #bae6fd; font-size: .8rem; line-height: 1.6; }
+.stage10-note { margin: 0; font-size: .82rem; }
+.stage10-lesson { max-width: 78ch; color: var(--text-secondary); line-height: 1.7; }
+.stage10-lesson p { margin: .5rem 0; }
+.stage10-lesson strong { color: var(--text-primary); }
+@media (max-width: 767px) {
+  .stage10-header { text-align: center; padding-left: 1rem; }
+  .stage10-header h1 { text-align: center; }
+  .stage10-intro { grid-template-columns: 1fr; }
+  .stage10-heading { align-items: flex-start; flex-direction: column; }
+}
+@media (max-width: 420px) {
+  .stage10-container { padding-inline: .7rem; }
+  .stage10-controls { grid-template-columns: 1fr; }
+  .stage10-controls input[type=number] { grid-column: 1; }
+  .stage10-panel, .stage10-intro { padding: .9rem; }
+  .stage10-bit-row { grid-template-columns: 1fr; }
+}
