@@ -22,6 +22,19 @@
 .stage10-heading { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .stage10-heading h2 { margin: .25rem 0 0; font-size: clamp(1.2rem, 2.4vw, 1.55rem); }
 .stage10-chart { width: 100%; }
+.stage10-sweep-controls { margin-top: .25rem; }
+.stage10-sweep-controls .stage10-heading p { max-width: 70ch; }
+.stage10-table-wrap { min-width: 0; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; }
+.stage10-sweep-table { width: 100%; min-width: 940px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.stage10-sweep-table caption { padding: .75rem; color: var(--text-secondary); text-align: left; }
+.stage10-sweep-table th, .stage10-sweep-table td { padding: .65rem .7rem; border-top: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.stage10-sweep-table thead th { color: var(--text-secondary); font-size: .78rem; font-weight: 600; }
+.stage10-sweep-table tbody th { color: var(--text-primary); font-weight: 700; }
+.stage10-sweep-table td { color: var(--text-secondary); }
+.stage10-sweep-table tbody tr:nth-child(even) { background: var(--surface-1); }
+.stage10-table-wrap:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
+.stage10-sweep-chart svg { overflow: visible; }
+.stage10-sweep-controls input:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
 .stage10-bits { display: grid; gap: .45rem; min-width: 0; }
 .stage10-bit-row { display: grid; grid-template-columns: minmax(125px, .28fr) minmax(0, 1fr); align-items: start; gap: .7rem; padding: .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
 .stage10-bit-row strong { color: var(--text-secondary); font-size: .84rem; }

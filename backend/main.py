@@ -52,7 +52,13 @@ from multipath_equalization import (
     equalize as equalize_multipath,
     estimate_channel as estimate_multipath_channel,
 )
-from convolutional_coding import run_experiment as run_stage10_experiment
+from convolutional_coding import (
+    MAX_SWEEP_INFORMATION_BITS,
+    MAX_SWEEP_TOTAL_INFORMATION_BITS,
+    eb_n0_scan_points,
+    run_eb_n0_sweep,
+    run_experiment as run_stage10_experiment,
+)
 from typing import Literal
 import math
 import json
@@ -492,6 +498,32 @@ class Stage10CreateRequest(BaseModel):
     def validate_detail_limit(self):
         if self.include_details and self.n_information_bits > 256:
             raise ValueError("include_details is limited to 256 information bits; disable details for larger experiments")
+        return self
+
+
+class Stage10BerSweepRequest(BaseModel):
+    """Bounded request for an independent, reproducible Eb/N0 sweep."""
+    model_config = {"extra": "forbid"}
+
+    start_db: float = Field(0.0, ge=-10.0, le=30.0)
+    stop_db: float = Field(10.0, ge=-10.0, le=30.0)
+    step_db: float = Field(2.0, gt=0.0, le=40.0)
+    n_information_bits: StrictInt = Field(2048, ge=1, le=MAX_SWEEP_INFORMATION_BITS)
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+
+    @field_validator("start_db", "stop_db", "step_db", mode="before")
+    @classmethod
+    def validate_sweep_float(cls, value, info):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{info.field_name} must be a finite real number")
+        return value
+
+    @model_validator(mode="after")
+    def validate_sweep_grid_and_budget(self):
+        points = eb_n0_scan_points(self.start_db, self.stop_db, self.step_db)
+        total = len(points) * self.n_information_bits
+        if total > MAX_SWEEP_TOTAL_INFORMATION_BITS:
+            raise ValueError(f"sweep may process at most {MAX_SWEEP_TOTAL_INFORMATION_BITS} information bits total")
         return self
 
 
@@ -1550,6 +1582,24 @@ async def create_stage10_experiment(request: Stage10CreateRequest):
             "limitation": "BER 来自本次固定的有限样本。零误码表示本帧未观察到错误，不代表总体误码率永远为零。",
         },
     }
+
+
+@app.post("/api/stage10/ber-sweep")
+async def create_stage10_ber_sweep(request: Stage10BerSweepRequest):
+    """Run a bounded set of Stage10 production experiments across Eb/N0."""
+    try:
+        return run_eb_n0_sweep(
+            start_db=request.start_db,
+            stop_db=request.stop_db,
+            step_db=request.step_db,
+            n_information_bits=request.n_information_bits,
+            seed=request.seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage10 BER sweep: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Stage10 BER sweep failed")
+        raise HTTPException(status_code=500, detail="Stage10 BER sweep could not be completed. Please retry.") from exc
 
 
 if __name__ == "__main__":

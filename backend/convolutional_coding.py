@@ -8,6 +8,7 @@ It is independent of the existing Stage01--09 simulators.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from decimal import Decimal, InvalidOperation
 import math
 from typing import Iterable, Sequence
 
@@ -20,6 +21,9 @@ GENERATORS_OCTAL = (7, 5)
 CODE_RATE = 0.5
 TAIL_BITS = (0, 0)
 EB_INFO = 1.0
+MAX_SWEEP_POINTS = 16
+MAX_SWEEP_INFORMATION_BITS = 4096
+MAX_SWEEP_TOTAL_INFORMATION_BITS = 32768
 
 
 def _bits(values: Iterable[int], *, name: str = "bits") -> tuple[int, ...]:
@@ -326,12 +330,81 @@ def run_experiment(
     )
 
 
+def eb_n0_scan_points(start_db: float, stop_db: float, step_db: float) -> tuple[float, ...]:
+    """Build a bounded, inclusive decimal Eb/N0 grid with exact step divisibility."""
+    values: list[Decimal] = []
+    for name, value in (("start_db", start_db), ("stop_db", stop_db), ("step_db", step_db)):
+        if isinstance(value, bool) or not isinstance(value, (int, float, np.integer, np.floating)) or not math.isfinite(float(value)):
+            raise ValueError(f"{name} must be a finite real number")
+        try:
+            values.append(Decimal(str(value)))
+        except InvalidOperation as exc:
+            raise ValueError(f"{name} must be a finite real number") from exc
+    start, stop, step = values
+    if start < -10 or start > 30 or stop < -10 or stop > 30:
+        raise ValueError("Eb/N0 scan endpoints must be within -10..30 dB")
+    if stop <= start:
+        raise ValueError("stop_db must be greater than start_db")
+    if step <= 0:
+        raise ValueError("step_db must be greater than zero")
+    intervals = (stop - start) / step
+    if intervals != intervals.to_integral_value():
+        raise ValueError("scan range must be evenly divisible by step_db")
+    count = int(intervals) + 1
+    if count > MAX_SWEEP_POINTS:
+        raise ValueError(f"scan may contain at most {MAX_SWEEP_POINTS} Eb/N0 points")
+    return tuple(float(start + step * index) for index in range(count))
+
+
+def run_eb_n0_sweep(
+    start_db: float = 0.0,
+    stop_db: float = 10.0,
+    step_db: float = 2.0,
+    n_information_bits: int = 2048,
+    seed: int = 2026,
+) -> dict[str, object]:
+    """Run independent, reproducible production experiments at each Eb/N0 point."""
+    points = eb_n0_scan_points(start_db, stop_db, step_db)
+    n = _information_length(n_information_bits)
+    if n > MAX_SWEEP_INFORMATION_BITS:
+        raise ValueError(f"n_information_bits may not exceed {MAX_SWEEP_INFORMATION_BITS} per point")
+    total_bits = len(points) * n
+    if total_bits > MAX_SWEEP_TOTAL_INFORMATION_BITS:
+        raise ValueError(f"sweep may process at most {MAX_SWEEP_TOTAL_INFORMATION_BITS} information bits total")
+    root_seed = _seed(seed)
+    results = []
+    for index, eb_n0_db in enumerate(points):
+        point_seed = int(np.random.SeedSequence([root_seed, index, 0x53544710]).generate_state(1, dtype=np.uint32)[0])
+        result = run_experiment(n, eb_n0_db, point_seed)
+        results.append({
+            "eb_n0_db": result.eb_n0_db,
+            "seed": point_seed,
+            "noise_variance": result.noise_variance,
+            "uncoded_information": {"errors": result.uncoded_errors, "compared": result.information_bit_count, "ber": result.uncoded_ber},
+            "coded_channel": {"errors": result.coded_channel_errors, "compared": result.encoded_bit_count, "ber": result.coded_channel_ber},
+            "decoded_information": {"errors": result.decoded_information_errors, "compared": result.information_bit_count, "ber": result.decoded_information_ber},
+        })
+    return {
+        "parameters": {"start_db": points[0], "stop_db": points[-1], "step_db": float(Decimal(str(step_db)),),
+                       "n_information_bits": n, "seed": root_seed, "point_count": len(points),
+                       "total_information_bits": total_bits},
+        "code": {"constraint_length": CONSTRAINT_LENGTH, "generators_octal": list(GENERATORS_OCTAL),
+                 "output_order": ["g0", "g1"], "rate": CODE_RATE, "tail_bits": list(TAIL_BITS)},
+        "energy": {"eb_info": EB_INFO, "coded_symbol_energy": CODE_RATE * EB_INFO,
+                   "noise_variance_by_point": "1 / (2 * 10^(Eb/N0_dB/10))"},
+        "sampling": {"design": "independent_payload_and_noise_per_snr", "repetitions_per_point": 1,
+                     "zero_error_note": "A measured BER of 0 means no errors in this finite sample; it does not establish a true BER of zero."},
+        "points": results,
+    }
+
+
 simulate_experiment = run_experiment
 
 
 __all__ = [
     "CODE_RATE", "CONSTRAINT_LENGTH", "EB_INFO", "EncodingResult", "ExperimentResult",
-    "GENERATORS_OCTAL", "TAIL_BITS", "ber", "decode_frame", "encode", "encode_frame",
-    "hard_decision", "run_experiment", "simulate_experiment", "snr_quantities", "transition",
+    "GENERATORS_OCTAL", "MAX_SWEEP_INFORMATION_BITS", "MAX_SWEEP_POINTS", "MAX_SWEEP_TOTAL_INFORMATION_BITS",
+    "TAIL_BITS", "ber", "decode_frame", "eb_n0_scan_points", "encode", "encode_frame",
+    "hard_decision", "run_eb_n0_sweep", "run_experiment", "simulate_experiment", "snr_quantities", "transition",
     "viterbi_decode",
 ]
