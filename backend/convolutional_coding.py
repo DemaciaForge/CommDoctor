@@ -170,6 +170,20 @@ def viterbi_decode(received_bits: Iterable[int], information_length: int) -> tup
     return decode_frame(received_bits, information_length).information_bits
 
 
+def soft_viterbi_decode(received_symbols: Iterable[float], information_length: int, *, amplitude: float = math.sqrt(CODE_RATE * EB_INFO)):
+    """Decode real AWGN samples with the Stage12 soft-input Viterbi core."""
+    from stage12_soft_viterbi import soft_viterbi_decode as _soft_viterbi_decode
+
+    return _soft_viterbi_decode(received_symbols, information_length, amplitude=amplitude)
+
+
+def paired_decode(information_bits: Iterable[int], received_symbols: Iterable[float], *, amplitude: float = math.sqrt(CODE_RATE * EB_INFO)):
+    """Run hard and soft decoding against one shared received-sample array."""
+    from stage12_soft_viterbi import paired_decode as _paired_decode
+
+    return _paired_decode(information_bits, received_symbols, amplitude=amplitude)
+
+
 def hard_decision(received_symbols: Iterable[float]) -> tuple[int, ...]:
     """Map real BPSK samples using the Stage01 convention ``sample > 0``."""
     try:
@@ -405,6 +419,6 @@ __all__ = [
     "CODE_RATE", "CONSTRAINT_LENGTH", "EB_INFO", "EncodingResult", "ExperimentResult",
     "GENERATORS_OCTAL", "MAX_SWEEP_INFORMATION_BITS", "MAX_SWEEP_POINTS", "MAX_SWEEP_TOTAL_INFORMATION_BITS",
     "TAIL_BITS", "ber", "decode_frame", "eb_n0_scan_points", "encode", "encode_frame",
-    "hard_decision", "run_eb_n0_sweep", "run_experiment", "simulate_experiment", "snr_quantities", "transition",
-    "viterbi_decode",
+    "hard_decision", "paired_decode", "run_eb_n0_sweep", "run_experiment", "simulate_experiment", "snr_quantities",
+    "soft_viterbi_decode", "transition", "viterbi_decode",
 ]
