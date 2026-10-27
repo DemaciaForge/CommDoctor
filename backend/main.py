@@ -58,6 +58,15 @@ from convolutional_coding import (
     eb_n0_scan_points,
     run_eb_n0_sweep,
     run_experiment as run_stage10_experiment,
+    encode_frame as encode_stage10_frame,
+    decode_frame as decode_stage10_frame,
+)
+from interleaving import (
+    MAX_DIMENSION as STAGE11_MAX_DIMENSION,
+    MAX_BLOCK_BITS as STAGE11_MAX_BLOCK_BITS,
+    interleave_bits as stage11_interleave_bits,
+    deinterleave_bits as stage11_deinterleave_bits,
+    apply_burst_errors as stage11_apply_burst_errors,
 )
 from typing import Literal
 import math
@@ -128,6 +137,7 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage08/challenges/compensate",
         "/api/stage09/experiments",
         "/api/stage10/experiments",
+        "/api/stage11/experiments",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -498,6 +508,33 @@ class Stage10CreateRequest(BaseModel):
     def validate_detail_limit(self):
         if self.include_details and self.n_information_bits > 256:
             raise ValueError("include_details is limited to 256 information bits; disable details for larger experiments")
+        return self
+
+
+class Stage11CreateRequest(BaseModel):
+    """Bounded single-frame Stage11 burst/interleaving experiment."""
+    model_config = {"extra": "forbid"}
+
+    n_information_bits: StrictInt = Field(64, ge=1, le=4096)
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+    rows: StrictInt = Field(4, ge=1, le=STAGE11_MAX_DIMENSION)
+    columns: StrictInt = Field(4, ge=1, le=STAGE11_MAX_DIMENSION)
+    burst_start: StrictInt = Field(0, ge=0)
+    burst_length: StrictInt = Field(8, ge=0)
+
+    @model_validator(mode="after")
+    def validate_stage11_frame(self):
+        if self.rows * self.columns > STAGE11_MAX_BLOCK_BITS:
+            raise ValueError(f"矩阵容量不能超过 {STAGE11_MAX_BLOCK_BITS} 位")
+        encoded_length = 2 * (self.n_information_bits + 2)
+        block_size = self.rows * self.columns
+        transmitted_length = ((encoded_length + block_size - 1) // block_size) * block_size
+        if transmitted_length > 2 * (4096 + 2) + STAGE11_MAX_BLOCK_BITS:
+            raise ValueError("填充后的传输帧超过计算上限")
+        if self.burst_length > transmitted_length:
+            raise ValueError(f"突发长度不能超过传输帧长度 {transmitted_length}")
+        if self.burst_start > transmitted_length or self.burst_start + self.burst_length > transmitted_length:
+            raise ValueError(f"突发区间必须完全位于传输索引 0 至 {transmitted_length - 1} 内")
         return self
 
 
@@ -1580,6 +1617,110 @@ async def create_stage10_experiment(request: Stage10CreateRequest):
             "decoding": "硬判决把接收样本映射为 0/1；Viterbi 在四状态 trellis 上累积 Hamming 路径度量并选择终止于零状态的最优路径。",
             "comparison": comparison,
             "limitation": "BER 来自本次固定的有限样本。零误码表示本帧未观察到错误，不代表总体误码率永远为零。",
+        },
+    }
+
+
+@app.post("/api/stage11/experiments")
+async def create_stage11_experiment(request: Stage11CreateRequest):
+    """Run one bounded Stage11 production coding/interleaving/burst experiment."""
+    try:
+        rng = np.random.default_rng(request.seed)
+        information_bits = tuple(int(value) for value in rng.integers(0, 2, size=request.n_information_bits))
+        encoding = encode_stage10_frame(information_bits)
+        interleaved = stage11_interleave_bits(encoding.encoded_bits, request.rows, request.columns)
+        burst = stage11_apply_burst_errors(
+            interleaved.bits,
+            request.burst_length,
+            start=request.burst_start,
+        )
+        restored = stage11_deinterleave_bits(
+            burst.bits, interleaved.valid_length, request.rows, request.columns,
+        )
+        decoded = decode_stage10_frame(restored, request.n_information_bits)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage11 experiment: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Stage11 experiment failed")
+        raise HTTPException(status_code=500, detail="Stage11 experiment could not be completed. Please retry.") from exc
+
+    coded_error_indices = tuple(index for index, (expected, actual) in enumerate(zip(encoding.encoded_bits, restored)) if expected != actual)
+    decoded_error_indices = tuple(index for index, (expected, actual) in enumerate(zip(information_bits, decoded.information_bits)) if expected != actual)
+    post_interleave_error_indices = tuple(
+        index for index, (expected, actual) in enumerate(zip(interleaved.bits, burst.bits)) if expected != actual
+    )
+    burst_to_coded = {
+        str(transmission_index): interleaved.output_sources[transmission_index]
+        for transmission_index in burst.flipped_positions
+    }
+    information_error_count = len(decoded_error_indices)
+    return {
+        "parameters": {
+            "n_information_bits": request.n_information_bits,
+            "seed": request.seed,
+            "rows": request.rows,
+            "columns": request.columns,
+            "burst_start": request.burst_start,
+            "burst_length": request.burst_length,
+        },
+        "code": {
+            "constraint_length": 3,
+            "generators_octal": [7, 5],
+            "output_order": ["g0", "g1"],
+            "rate": encoding.code_rate,
+            "tail_bits": encoding.tail_bits,
+            "decoder": "terminated_hard_decision_viterbi",
+        },
+        "lengths": {
+            "information_bits": len(information_bits),
+            "tail_bits": encoding.tail_bits,
+            "encoded_bits": len(encoding.encoded_bits),
+            "valid_interleaved_bits": interleaved.valid_length,
+            "transmitted_bits": interleaved.padded_length,
+            "padding_bits": interleaved.pad_count,
+            "decoded_information_bits": len(decoded.information_bits),
+        },
+        "interleaver": {
+            "rows": request.rows,
+            "columns": request.columns,
+            "block_bits": request.rows * request.columns,
+            "output_sources": list(interleaved.output_sources),
+        },
+        "channel": {
+            "burst_start": burst.start,
+            "burst_length": burst.length,
+            "flipped_positions": list(burst.flipped_positions),
+            "flipped_count": burst.flipped_count,
+            "transmission_error_count": len(post_interleave_error_indices),
+            "transmission_error_indices": list(post_interleave_error_indices),
+            "transmission_to_coded_index": burst_to_coded,
+        },
+        "results": {
+            "coded_error_indices_after_deinterleave": list(coded_error_indices),
+            "coded_error_count": len(coded_error_indices),
+            "decoded_information_error_indices": list(decoded_error_indices),
+            "information_error_count": information_error_count,
+            "information_ber": information_error_count / len(information_bits),
+            "information_ber_errors": information_error_count,
+            "information_ber_denominator": len(information_bits),
+            "corrected_all_information_errors": information_error_count == 0,
+        },
+        "details": {
+            "information_bits": list(information_bits),
+            "encoded_bits": list(encoding.encoded_bits),
+            "interleaved_bits": list(interleaved.bits),
+            "transmitted_bits": list(burst.bits),
+            "deinterleaved_bits": list(restored),
+            "decoded_information_bits": list(decoded.information_bits),
+        },
+        "teaching": {
+            "mapping": "交织按行写入矩形块、按列读出；传输坐标与编码坐标通过来源表逐位对应。",
+            "burst": "突发错误只在传输序列的连续区间内翻转；填充位参与传输但不进入信息 BER。",
+            "conclusion": (
+                f"本次注入 {burst.flipped_count} 个传输错误，反交织后有 {len(coded_error_indices)} 个有效编码位错误，"
+                f"Viterbi 后有 {information_error_count}/{len(information_bits)} 个信息位错误。"
+            ),
+            "limitation": "交织把传输坐标重新映射到编码坐标，但单次突发落点可能落在相近编码位置或填充位；不保证每次都改善 BER。",
         },
     }
 

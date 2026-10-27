@@ -1,0 +1,20 @@
+.stage11-header { max-width: 1200px; margin-inline: auto; padding-inline: clamp(1rem, 3vw, 2rem); }
+.stage11-header h1 { text-align: left; }
+.stage11-container { max-width: 1200px; gap: 1.25rem; }
+.stage11-config { grid-template-columns: minmax(0, .85fr) minmax(320px, 1fr); }
+.stage11-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .5rem; padding: 0; margin: .25rem 0; list-style: none; counter-reset: flow; }
+.stage11-flow li { display: grid; align-content: center; min-height: 3.6rem; padding: .55rem; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--surface-1); text-align: center; font-size: .86rem; }
+.stage11-chart svg { overflow: visible; }
+.stage11-chart svg text { fill: var(--cd-viz-text); font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.stage11-map-cell { fill: #172538; stroke: #40526b; }
+.stage11-map-error { fill: #713d26; stroke: #f0b978; stroke-width: 1.4; }
+.stage11-map-pad { fill: #26303b; stroke: #64748b; stroke-dasharray: 3 2; }
+.stage11-sequences { display: grid; gap: .5rem; min-width: 0; }
+.stage11-sequence-row { display: grid; grid-template-columns: minmax(145px, .27fr) minmax(0, 1fr); align-items: start; gap: .8rem; padding: .7rem; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+.stage11-sequence-row strong { color: var(--text-secondary); font-size: .83rem; }
+.stage11-bits { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
+.stage11-bits span { display: inline-grid; place-items: center; width: 1.25rem; height: 1.4rem; border-radius: 3px; color: #bae6fd; background: #112438; font: .72rem ui-monospace, SFMono-Regular, Consolas, monospace; }
+.stage11-bits span.is-error { color: #fff7ed; background: #a34f20; outline: 1px solid #fdba74; }
+.stage11-config input:focus-visible { outline: 3px solid #bae6fd; outline-offset: 2px; }
+@media (max-width: 900px) { .stage11-config { grid-template-columns: 1fr; } .stage11-flow { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .stage11-header { padding-inline: 1rem; } .stage11-header h1 { text-align: center; } .stage11-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .stage11-sequence-row { grid-template-columns: 1fr; gap: .4rem; } }
