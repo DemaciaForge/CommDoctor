@@ -73,4 +73,4 @@ Impeccable detector 对新增页面 TSX/CSS 未报告机械性设计问题。浏
 
 ## 7. Git 状态
 
-本轮验收结束时尚未提交或推送；本地 HEAD 和远端仍为 `fd61951a710b5de39c856d7a98456d986c3ddb6c`。提交前只应暂存本轮的 `backend/main.py`、`backend/stage12_experiments.py`、`backend/test_stage12_experiments_api.py`、`frontend/src/AppShell.tsx`、`frontend/src/Router.tsx`、`frontend/src/Stage12SoftDecisionApp.tsx`、`frontend/src/Stage12SoftDecision.css` 和本报告。已有未跟踪文件不得加入提交。
+验收通过后只暂存本轮的 `backend/main.py`、`backend/stage12_experiments.py`、`backend/test_stage12_experiments_api.py`、`frontend/src/AppShell.tsx`、`frontend/src/Router.tsx`、`frontend/src/Stage12SoftDecisionApp.tsx`、`frontend/src/Stage12SoftDecision.css` 和本报告；已有未跟踪文件未加入提交。提交 `9201c0ab4aa33d72aee8ab0a651895108896d423` 已推送到 `origin/main`，Author 与 Committer 均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`。推送后本地 HEAD、`origin/main` 和 GitHub 实时 `refs/heads/main` 均核对为 `9201c0ab4aa33d72aee8ab0a651895108896d423`。
