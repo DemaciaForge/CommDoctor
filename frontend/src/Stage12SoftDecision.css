@@ -1,0 +1,29 @@
+.stage12-container { max-width: 1200px; gap: 1rem; }
+.stage12-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1.5rem; padding: 1.25rem 0 .75rem; border-bottom: 1px solid var(--border); }
+.stage12-hero h1 { max-width: 22ch; margin: .35rem 0 .55rem; font-size: clamp(1.6rem, 2rem, 2rem); line-height: 1.2; }
+.stage12-hero p { max-width: 72ch; margin: 0; color: var(--text-secondary); line-height: 1.65; }
+.stage12-hero-spec { display: grid; gap: .4rem; min-width: 220px; padding: .85rem 1rem; border-left: 2px solid var(--accent); color: var(--text-secondary); font-size: .82rem; }
+.stage12-hero-spec strong { color: var(--text-primary); font-size: 1rem; }
+.stage12-config { grid-template-columns: minmax(0, 1fr) minmax(310px, .8fr); }
+.stage12-sweep-controls { margin-top: .25rem; }
+.stage12-results { min-width: 0; }
+.stage12-fairness { display: flex; flex-wrap: wrap; align-items: center; gap: .55rem 1rem; padding: .85rem 1rem; border-left: 2px solid #38bdf8; background: var(--surface-1); color: var(--text-secondary); font-size: .8rem; }
+.stage12-fairness strong { color: var(--text-primary); }
+.stage12-fairness span { overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.stage12-observation { max-width: 78ch; color: var(--text-secondary); line-height: 1.65; }
+.stage12-observation p { margin: .35rem 0; }
+.stage12-details { display: grid; gap: .45rem; }
+.stage12-chart { min-width: 0; }
+.stage12-table { min-width: 760px; }
+.stage12-method-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.stage12-method-grid p { margin: 0; padding: .85rem; border-left: 2px solid var(--border); color: var(--text-secondary); line-height: 1.6; }
+.stage12-method-grid strong { color: var(--text-primary); }
+@media (max-width: 767px) {
+  .stage12-hero { grid-template-columns: 1fr; align-items: start; }
+  .stage12-hero-spec { grid-template-columns: repeat(3, minmax(0, 1fr)); min-width: 0; border-left: 0; border-top: 1px solid var(--border); padding: .75rem 0 0; }
+  .stage12-config { grid-template-columns: 1fr; }
+  .stage12-method-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 420px) {
+  .stage12-hero-spec { grid-template-columns: 1fr; }
+}

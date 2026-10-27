@@ -68,6 +68,13 @@ from interleaving import (
     deinterleave_bits as stage11_deinterleave_bits,
     apply_burst_errors as stage11_apply_burst_errors,
 )
+from stage12_experiments import (
+    MAX_COMPARE_INFORMATION_BITS as STAGE12_MAX_INFORMATION_BITS,
+    MAX_DETAIL_INFORMATION_BITS as STAGE12_MAX_DETAIL_BITS,
+    run_compare as run_stage12_compare,
+    run_sweep as run_stage12_sweep,
+    scan_points as stage12_scan_points,
+)
 from typing import Literal
 import math
 import json
@@ -138,6 +145,8 @@ async def validate_request_body(request: Request, call_next):
         "/api/stage09/experiments",
         "/api/stage10/experiments",
         "/api/stage11/experiments",
+        "/api/stage12/compare",
+        "/api/stage12/ber-sweep",
     ]:
         # P2-01修复：检查 Content-Type，按项目契约返回 422
         content_type = request.headers.get("content-type", "")
@@ -560,6 +569,61 @@ class Stage10BerSweepRequest(BaseModel):
         points = eb_n0_scan_points(self.start_db, self.stop_db, self.step_db)
         total = len(points) * self.n_information_bits
         if total > MAX_SWEEP_TOTAL_INFORMATION_BITS:
+            raise ValueError(f"sweep may process at most {MAX_SWEEP_TOTAL_INFORMATION_BITS} information bits total")
+        return self
+
+
+class Stage12CompareRequest(BaseModel):
+    """Bounded one-frame hard/soft Viterbi comparison."""
+    model_config = {"extra": "forbid"}
+
+    n_information_bits: StrictInt = Field(256, ge=1, le=STAGE12_MAX_INFORMATION_BITS)
+    eb_n0_db: float = Field(4.0, ge=-10.0, le=30.0)
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+    include_details: bool = False
+
+    @field_validator("eb_n0_db", mode="before")
+    @classmethod
+    def validate_stage12_snr(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("eb_n0_db must be a finite real number")
+        return value
+
+    @field_validator("include_details", mode="before")
+    @classmethod
+    def validate_stage12_details_flag(cls, value):
+        if not isinstance(value, bool):
+            raise ValueError("include_details must be a boolean")
+        return value
+
+    @model_validator(mode="after")
+    def validate_stage12_detail_limit(self):
+        if self.include_details and self.n_information_bits > STAGE12_MAX_DETAIL_BITS:
+            raise ValueError(f"include_details is limited to {STAGE12_MAX_DETAIL_BITS} information bits")
+        return self
+
+
+class Stage12BerSweepRequest(BaseModel):
+    """Bounded paired hard/soft BER sweep."""
+    model_config = {"extra": "forbid"}
+
+    start_db: float = Field(0.0, ge=-10.0, le=30.0)
+    stop_db: float = Field(10.0, ge=-10.0, le=30.0)
+    step_db: float = Field(2.0, gt=0.0, le=40.0)
+    n_information_bits: StrictInt = Field(2048, ge=1, le=MAX_SWEEP_INFORMATION_BITS)
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+
+    @field_validator("start_db", "stop_db", "step_db", mode="before")
+    @classmethod
+    def validate_stage12_sweep_float(cls, value, info):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{info.field_name} must be a finite real number")
+        return value
+
+    @model_validator(mode="after")
+    def validate_stage12_sweep_budget(self):
+        points = stage12_scan_points(self.start_db, self.stop_db, self.step_db)
+        if len(points) * self.n_information_bits > MAX_SWEEP_TOTAL_INFORMATION_BITS:
             raise ValueError(f"sweep may process at most {MAX_SWEEP_TOTAL_INFORMATION_BITS} information bits total")
         return self
 
@@ -1741,6 +1805,41 @@ async def create_stage10_ber_sweep(request: Stage10BerSweepRequest):
     except Exception as exc:
         logger.exception("Stage10 BER sweep failed")
         raise HTTPException(status_code=500, detail="Stage10 BER sweep could not be completed. Please retry.") from exc
+
+
+@app.post("/api/stage12/compare")
+async def create_stage12_compare(request: Stage12CompareRequest):
+    """Run one stateless fair hard/soft comparison on one received array."""
+    try:
+        return run_stage12_compare(
+            n_information_bits=request.n_information_bits,
+            eb_n0_db=request.eb_n0_db,
+            seed=request.seed,
+            include_details=request.include_details,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage12 comparison: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Stage12 comparison failed")
+        raise HTTPException(status_code=500, detail="Stage12 comparison could not be completed. Please retry.") from exc
+
+
+@app.post("/api/stage12/ber-sweep")
+async def create_stage12_ber_sweep(request: Stage12BerSweepRequest):
+    """Run a bounded paired hard/soft BER sweep."""
+    try:
+        return run_stage12_sweep(
+            start_db=request.start_db,
+            stop_db=request.stop_db,
+            step_db=request.step_db,
+            n_information_bits=request.n_information_bits,
+            seed=request.seed,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage12 BER sweep: {exc}") from exc
+    except Exception as exc:
+        logger.exception("Stage12 BER sweep failed")
+        raise HTTPException(status_code=500, detail="Stage12 BER sweep could not be completed. Please retry.") from exc
 
 
 if __name__ == "__main__":

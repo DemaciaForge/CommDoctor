@@ -10,6 +10,7 @@ import TimingSynchronizationApp from './TimingSynchronizationApp';
 import MultipathEqualizationApp from './MultipathEqualizationApp';
 import Stage10CodingApp from './Stage10CodingApp';
 import Stage11InterleavingApp from './Stage11InterleavingApp';
+import Stage12SoftDecisionApp from './Stage12SoftDecisionApp';
 import AppShell from './AppShell';
 
 /**
@@ -45,6 +46,7 @@ export default function Router() {
       {route === '/stage09' && <MultipathEqualizationApp />}
       {route === '/stage10' && <Stage10CodingApp />}
       {route === '/stage11' && <Stage11InterleavingApp />}
+      {route === '/stage12' && <Stage12SoftDecisionApp />}
     </AppShell>
   );
 }
