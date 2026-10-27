@@ -56,7 +56,7 @@
 本轮只提交本报告、`backend/main.py`、`backend/test_stage11_api.py`、`frontend/src/AppShell.tsx`、`frontend/src/Router.tsx`、`frontend/src/Stage11InterleavingApp.tsx` 和 `frontend/src/Stage11Interleaving.css`。其余起始未跟踪材料均保留。
 
 - 功能提交：`a9191f2824e586c311ebe34a7347c448be812054`（`feat(stage11): add burst interleaving experiment lab`）。
-- 报告格式修正提交：`917665ab8ebb9b65dd804c3bc43a409bacd8a414`（`docs(stage11): finalize phase 3 acceptance report`）。
+- 报告整理提交：`917665ab8ebb9b65dd804c3bc43a409bacd8a414`（`docs(stage11): finalize phase 3 acceptance report`）、`54b2fc7ca960f2c5ffb64a99e0553c1c1d259bbe`（`docs(stage11): record verified main delivery`）。
 - 两个提交作者和提交者均为 `DemaciaForge <DemaciaForge@users.noreply.github.com>`；核验提交头未包含其他署名。
-- 已普通快进推送，无强推或历史改写。推送后再次 fetch 并查询 GitHub 实时 `main`：本地 HEAD、`origin/main` 和 GitHub `refs/heads/main` 均为 `917665ab8ebb9b65dd804c3bc43a409bacd8a414`。
+- 已普通快进推送，无强推或历史改写。最终报告更正前再次 fetch 并查询 GitHub 实时 `main`：本地 HEAD、`origin/main` 和 GitHub `refs/heads/main` 均为 `54b2fc7ca960f2c5ffb64a99e0553c1c1d259bbe`。随后仅更新本报告的核验记录并将该更正作为独立提交推送。
 - 推送后的 `git status --short` 仅列出任务开始前已存在的未跟踪材料；本轮代码与报告文件均已提交，工作区无本轮残留修改。
