@@ -11,6 +11,7 @@ import MultipathEqualizationApp from './MultipathEqualizationApp';
 import Stage10CodingApp from './Stage10CodingApp';
 import Stage11InterleavingApp from './Stage11InterleavingApp';
 import Stage12SoftDecisionApp from './Stage12SoftDecisionApp';
+import Stage13LmsApp from './Stage13LmsApp';
 import AppShell from './AppShell';
 
 /**
@@ -47,6 +48,7 @@ export default function Router() {
       {route === '/stage10' && <Stage10CodingApp />}
       {route === '/stage11' && <Stage11InterleavingApp />}
       {route === '/stage12' && <Stage12SoftDecisionApp />}
+      {route === '/stage13' && <Stage13LmsApp />}
     </AppShell>
   );
 }

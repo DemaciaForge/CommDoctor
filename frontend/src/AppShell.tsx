@@ -17,6 +17,7 @@ const stages: Stage[] = [
   { path: '/stage10', label: 'Stage10 卷积编码', short: '10' },
   { path: '/stage11', label: 'Stage11 突发交织', short: '11' },
   { path: '/stage12', label: 'Stage12 软判决', short: '12' },
+  { path: '/stage13', label: 'Stage13 LMS 均衡', short: '13' },
 ]
 
 export default function AppShell({ route, children }: { route: string; children: ReactNode }) {

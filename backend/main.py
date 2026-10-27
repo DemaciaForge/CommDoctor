@@ -75,6 +75,14 @@ from stage12_experiments import (
     run_sweep as run_stage12_sweep,
     scan_points as stage12_scan_points,
 )
+from stage13_lms import (
+    MAX_MU as STAGE13_MAX_MU,
+    MAX_PAYLOAD_SYMBOLS as STAGE13_MAX_PAYLOAD_SYMBOLS,
+    MIN_PAYLOAD_SYMBOLS as STAGE13_MIN_PAYLOAD_SYMBOLS,
+    MIN_TRAINING_SYMBOLS as STAGE13_MIN_TRAINING_SYMBOLS,
+    MAX_TRAINING_SYMBOLS as STAGE13_MAX_TRAINING_SYMBOLS,
+    run_experiment as run_stage13_experiment,
+)
 from typing import Literal
 import math
 import json
@@ -490,6 +498,33 @@ class Stage09EqualizeRequest(BaseModel):
     algorithm: Literal["zf", "mmse"]
 
 
+class Stage13CreateRequest(BaseModel):
+    """Bounded deterministic LMS experiment over the Stage09 channel."""
+    model_config = {"extra": "forbid"}
+
+    seed: StrictInt = Field(2026, ge=0, le=2**32 - 1)
+    eb_n0_db: float = Field(8.0, ge=STAGE09_MIN_EB_N0_DB, le=STAGE09_MAX_EB_N0_DB)
+    n_training_symbols: StrictInt = Field(60, ge=STAGE13_MIN_TRAINING_SYMBOLS, le=STAGE13_MAX_TRAINING_SYMBOLS)
+    n_payload_symbols: StrictInt = Field(512, ge=STAGE13_MIN_PAYLOAD_SYMBOLS, le=STAGE13_MAX_PAYLOAD_SYMBOLS)
+    mu: float = Field(0.01, gt=0.0, le=STAGE13_MAX_MU)
+    path_delays_samples: list[StrictInt] = Field(default_factory=lambda: [0, STAGE09_SPS])
+    path_gains: list[float] = Field(default_factory=lambda: [1.0, 0.7])
+
+    @field_validator("eb_n0_db", "mu", mode="before")
+    @classmethod
+    def validate_stage13_floats(cls, value):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError("Stage13 numeric parameters must be finite real numbers")
+        return value
+
+    @field_validator("path_gains", mode="before")
+    @classmethod
+    def validate_stage13_gains(cls, value):
+        if not isinstance(value, list) or any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in value):
+            raise ValueError("path_gains must contain finite real numbers")
+        return value
+
+
 class Stage10CreateRequest(BaseModel):
     """Bounded request for one deterministic Stage10 coding experiment."""
     model_config = {"extra": "forbid"}
@@ -673,6 +708,8 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                     error['input'] = input_val.decode('utf-8', errors='replace')[:100]
                 except:
                     error['input'] = f"<bytes: {len(input_val)} bytes>"
+            elif isinstance(input_val, float) and not math.isfinite(input_val):
+                error['input'] = str(input_val)
             elif not isinstance(input_val, (int, str, bool, type(None), float, list, dict)):
                 error['input'] = str(type(input_val).__name__)
 
@@ -1580,6 +1617,18 @@ async def stage09_experiment_feedback(experiment_id: str):
             "tradeoff": "ZF 追求抵消估计到的符号间干扰，但病态信道可能放大噪声。MMSE 加正则项，在残余 ISI 与噪声放大之间折中。",
             "conclusion": f"本次 {best.upper()} 的误码为 {best_result['n_errors']}/{best_result['n_compared']}，原始判决为 {raw_errors}/{experiment['raw_ber']['n_compared']}。结果来自同一接收数组和固定 payload 索引；均衡不保证每次都改善 BER。",
             "limitations": "静态实数 BPSK、整数符号延迟（16 samples 的倍数）、固定 RRC 与短窗线性均衡器；不包含分数延迟、时变信道、载波偏移或编码。单进程内存缓存最多保留 20 个实验。"}}
+
+
+@app.post("/api/stage13/experiments")
+async def create_stage13_experiment(request: Stage13CreateRequest):
+    try:
+        return run_stage13_experiment(seed=request.seed, eb_n0_db=request.eb_n0_db,
+            n_training_symbols=request.n_training_symbols, n_payload_symbols=request.n_payload_symbols,
+            mu=request.mu, path_delays_samples=request.path_delays_samples, path_gains=request.path_gains)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"Invalid Stage13 experiment: {exc}") from exc
+    except (FloatingPointError, OverflowError) as exc:
+        raise HTTPException(status_code=422, detail=f"Stage13 experiment diverged: {exc}") from exc
 
 
 @app.post("/api/stage10/experiments")

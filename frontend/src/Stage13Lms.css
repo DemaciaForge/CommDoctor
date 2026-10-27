@@ -1,0 +1,17 @@
+.stage13-container { max-width: 1200px; gap: 1rem; }
+.stage13-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 1.5rem; padding: 1.2rem 0 .85rem; border-bottom: 1px solid var(--border); }
+.stage13-heading h1 { margin: 0 0 .45rem; font-size: 1.8rem; line-height: 1.2; }
+.stage13-heading p, .stage13-setup p, .stage13-review p { color: var(--text-secondary); line-height: 1.6; }
+.stage13-heading p { max-width: 68ch; margin: 0; }
+.stage13-model { display: grid; gap: .35rem; min-width: 205px; padding-left: .9rem; border-left: 1px solid var(--border); color: var(--text-secondary); font-size: .84rem; }
+.stage13-model strong { color: var(--text-primary); font-size: .98rem; }
+.stage13-setup, .stage13-results, .stage13-review { min-width: 0; padding: 1rem 0; border-bottom: 1px solid var(--border); }
+.stage13-setup h2, .stage13-review h2 { margin: 0; font-size: 1.12rem; }
+.stage13-setup p { margin: .35rem 0 .75rem; }
+.stage13-results .stage10-heading { margin-bottom: .6rem; }
+.stage13-diagnosis { margin: .8rem 0 0; color: var(--text-secondary); line-height: 1.5; }
+.stage13-chart { min-width: 0; }
+.stage13-review p { margin: .55rem 0; }
+.stage13-review p:last-child { font-size: .84rem; }
+@media (max-width: 767px) { .stage13-heading { grid-template-columns: 1fr; align-items: start; } .stage13-model { grid-template-columns: repeat(2, minmax(0, 1fr)); border-left: 0; border-top: 1px solid var(--border); padding: .7rem 0 0; } }
+@media (max-width: 420px) { .stage13-model { grid-template-columns: 1fr; } }
