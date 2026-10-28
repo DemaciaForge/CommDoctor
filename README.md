@@ -164,7 +164,7 @@ SE = sqrt((1 + σ²) / N)
 
 ## 开发说明
 
-本项目由AI辅助开发（Claude Code）。
+本项目由AI辅助开发（Claude Code）（codex）。
 
 ## 许可证
 
